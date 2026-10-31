@@ -3,8 +3,11 @@
  * origin = floor point under the seat, +Z = towards the desk, Y up.
  *
  * Geometries and materials are shared by every figure; only the transforms differ.
+ * The look (colours, hair, glasses, ...) comes from an AvatarSetup, see outfit.ts.
  */
 import * as THREE from 'three';
+import type { AvatarSetup } from '../../../shared/avatar';
+import { Outfit, flat, hangFor, mesh } from './outfit';
 
 /* ---------------------------------------------------------- proportions */
 
@@ -22,45 +25,6 @@ const TYPING_WRIST = new THREE.Vector2(0.62, 0.8); // (z, y)
 const LEAN_WORKING = 0.12;
 const LEAN_IDLE = -0.3;
 
-/* ------------------------------------------------------------- palette */
-
-/** Shirt colours: saturated but soft, distinct from the grey/wood office. */
-const SHIRTS = [
-  0xe63946, 0xf3722c, 0x2a9d8f, 0x4d96ff, 0x6c63ff, 0xc77dff, 0xff5d8f, 0x43aa8b, 0x80b918, 0x577590, 0x00b4d8,
-  0xffd60a,
-];
-const SKINS = [0xf1c7a5, 0xe0ac86, 0xc68a62, 0x8d5a3b];
-const HAIRS = [0x2b2118, 0x4a3426, 0x7a4f2d, 0x1d1d22, 0xb88a4a, 0x8e8e93];
-
-/** FNV-1a: stable 32-bit hash of the userKey. */
-export function hashKey(key: string): number {
-  let h = 0x811c9dc5;
-  for (let i = 0; i < key.length; i++) {
-    h ^= key.charCodeAt(i);
-    h = Math.imul(h, 0x01000193);
-  }
-  return h >>> 0;
-}
-
-export interface FigureLook {
-  shirt: number;
-  skin: number;
-  hair: number;
-}
-
-export function lookFor(userKey: string): FigureLook {
-  const h = hashKey(userKey);
-  return {
-    shirt: SHIRTS[h % SHIRTS.length]!,
-    skin: SKINS[(h >>> 8) % SKINS.length]!,
-    hair: HAIRS[(h >>> 16) % HAIRS.length]!,
-  };
-}
-
-export function shirtCss(userKey: string): string {
-  return `#${lookFor(userKey).shirt.toString(16).padStart(6, '0')}`;
-}
-
 /* ------------------------------------------------- shared GPU resources */
 
 function down(g: THREE.BufferGeometry, length: number): THREE.BufferGeometry {
@@ -71,7 +35,6 @@ function down(g: THREE.BufferGeometry, length: number): THREE.BufferGeometry {
 export const GEO = {
   torso: new THREE.CylinderGeometry(0.19, 0.16, 0.48, 6).translate(0, 0.25, 0),
   head: new THREE.IcosahedronGeometry(0.12, 1),
-  hair: new THREE.SphereGeometry(0.128, 8, 4, 0, Math.PI * 2, 0, Math.PI * 0.52),
   upperArm: down(new THREE.CylinderGeometry(0.052, 0.045, UPPER_ARM, 6), UPPER_ARM),
   forearm: down(new THREE.CylinderGeometry(0.042, 0.036, FOREARM, 6), FOREARM),
   hand: new THREE.BoxGeometry(0.075, 0.1, 0.035).translate(0, -FOREARM - 0.04, 0),
@@ -80,24 +43,7 @@ export const GEO = {
   shoe: new THREE.BoxGeometry(0.12, 0.07, 0.22),
 };
 
-const materials = new Map<number, THREE.MeshStandardMaterial>();
-export function flat(color: number): THREE.MeshStandardMaterial {
-  let m = materials.get(color);
-  if (!m) {
-    m = new THREE.MeshStandardMaterial({ color, roughness: 0.85, flatShading: true });
-    materials.set(color, m);
-  }
-  return m;
-}
-export const PANTS = 0x34384a;
 export const SHOES = 0x1c1c20;
-
-export function mesh(geo: THREE.BufferGeometry, mat: THREE.Material, x = 0, y = 0, z = 0): THREE.Mesh {
-  const m = new THREE.Mesh(geo, mat);
-  m.position.set(x, y, z);
-  m.castShadow = true;
-  return m;
-}
 
 /* -------------------------------------------------------------- arm IK */
 
@@ -163,21 +109,22 @@ export class Figure {
   private readonly head = new THREE.Group();
   private readonly shoulders: THREE.Group[] = [];
   private readonly elbows: THREE.Group[] = [];
-  private readonly shirtMeshes: THREE.Mesh[] = [];
-  private readonly skinMeshes: THREE.Mesh[] = [];
-  private readonly hairMesh: THREE.Mesh;
+  private readonly outfit: Outfit;
   private pose: FigurePose = 'idle';
   private readonly phase = Math.random() * Math.PI * 2;
 
   constructor() {
     this.root.name = 'figure';
+    this.outfit = new Outfit(this.head);
+    const o = this.outfit;
 
     // legs (static)
     for (const sx of [-1, 1]) {
       const x = sx * 0.1;
-      this.root.add(mesh(GEO.thigh, flat(PANTS), x, HIP.y + 0.02, HIP.z + 0.2));
-      this.root.add(mesh(GEO.shin, flat(PANTS), x, 0.3, HIP.z + 0.4));
-      this.root.add(mesh(GEO.shoe, flat(SHOES), x, 0.035, HIP.z + 0.46));
+      const thigh = mesh(GEO.thigh, flat(0), x, HIP.y + 0.02, HIP.z + 0.2);
+      const shin = mesh(GEO.shin, flat(0), x, 0.3, HIP.z + 0.4);
+      this.root.add(thigh, shin, mesh(GEO.shoe, flat(SHOES), x, 0.035, HIP.z + 0.46));
+      o.pants.push(thigh, shin);
     }
 
     this.torso.position.copy(HIP);
@@ -185,16 +132,13 @@ export class Figure {
     const chest = mesh(GEO.torso, flat(0xffffff));
     chest.scale.z = 0.62;
     this.torso.add(chest);
-    this.shirtMeshes.push(chest);
+    o.shirt.push(chest);
 
     this.head.position.set(0, SHOULDER_Y + 0.2, 0.01);
     this.torso.add(this.head);
     const face = mesh(GEO.head, flat(0xffffff));
     this.head.add(face);
-    this.skinMeshes.push(face);
-    this.hairMesh = mesh(GEO.hair, flat(0x000000), 0, 0.015, -0.012);
-    this.hairMesh.rotation.x = -0.35;
-    this.head.add(this.hairMesh);
+    o.skin.push(face);
 
     for (const sx of [-1, 1]) {
       const shoulder = new THREE.Group();
@@ -202,7 +146,7 @@ export class Figure {
       this.torso.add(shoulder);
       const sleeve = mesh(GEO.upperArm, flat(0xffffff));
       shoulder.add(sleeve);
-      this.shirtMeshes.push(sleeve);
+      o.shirt.push(sleeve);
 
       const elbow = new THREE.Group();
       elbow.position.y = -UPPER_ARM;
@@ -210,7 +154,7 @@ export class Figure {
       const forearm = mesh(GEO.forearm, flat(0xffffff));
       const hand = mesh(GEO.hand, flat(0xffffff));
       elbow.add(forearm, hand);
-      this.skinMeshes.push(forearm, hand);
+      o.skin.push(forearm, hand);
 
       this.shoulders.push(shoulder);
       this.elbows.push(elbow);
@@ -218,10 +162,8 @@ export class Figure {
     this.setPose('idle');
   }
 
-  setLook(look: FigureLook): void {
-    for (const m of this.shirtMeshes) m.material = flat(look.shirt);
-    for (const m of this.skinMeshes) m.material = flat(look.skin);
-    this.hairMesh.material = flat(look.hair);
+  setLook(look: AvatarSetup): void {
+    this.outfit.apply(look);
   }
 
   setPose(pose: FigurePose): void {
@@ -229,6 +171,7 @@ export class Figure {
     const p = POSES[pose];
     this.torso.rotation.x = p.lean;
     this.head.rotation.set(p.head, 0, 0);
+    this.outfit.head.setHang(hangFor(p.lean + p.head));
     for (let i = 0; i < 2; i++) {
       const side = i === 0 ? -1 : 1;
       const { shoulder, elbow } = p.arm;

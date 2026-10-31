@@ -45,6 +45,11 @@ export interface SeatPresence {
   busy: boolean;
   /** Most recent tool used today, or null. */
   tool: Tool | null;
+  /**
+   * The employee's avatar code from /avatar (see shared/avatar.ts), or null for the automatic look
+   * (derive it with avatarFromKey(userKey)).
+   */
+  avatar: string | null;
 }
 
 export interface PresenceSnapshot {

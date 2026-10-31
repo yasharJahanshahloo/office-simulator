@@ -4,6 +4,7 @@ import { nameTagFor } from './bot';
 import { CredentialCodec } from './credential';
 import { Store } from './db';
 import { Presence } from './presence';
+import { avatarFromKey, canonicalAvatarCode, decodeAvatar, encodeAvatar } from '../../shared/avatar';
 import { DESK_LABELS, labelOf, parseAnyLabel, parseLabel, seatIdOf } from './seats';
 
 const KEY = 'a'.repeat(64);
@@ -105,4 +106,30 @@ test('presence: working → busy → stop → idle → away', () => {
   s = presence.snapshot().seats[0];
   assert.equal(s.state, 'away');
   assert.equal(s.tool, null);
+});
+
+test('avatar code: round-trip, forgiving input, typo rejection', () => {
+  const a = { skin: 3, hairStyle: 'ponytail', hairColor: 5, facialHair: 'beard', shirt: 11, pants: 7, glasses: true, headphones: false } as const;
+  const code = encodeAvatar(a);
+  assert.match(code, /^A1-[0-9A-HJKMNP-TV-Z]{5}$/);
+  assert.deepEqual(decodeAvatar(code), a);
+  assert.equal(canonicalAvatarCode(` ${code.toLowerCase().replace('-', '')} `), code);
+  const typo = code.slice(0, 4) + (code[4] === 'Z' ? 'Y' : 'Z') + code.slice(5);
+  assert.equal(decodeAvatar(typo), null);
+  assert.equal(decodeAvatar('A1-'), null);
+  assert.equal(decodeAvatar('/avatar A1-XXXXX'), null);
+  const auto = avatarFromKey('9d0d02f55fab');
+  assert.ok(decodeAvatar(encodeAvatar(auto)), 'automatic look is a valid setup');
+});
+
+test('avatar is stored per user and shows up in the snapshot', () => {
+  const store = tempStore();
+  store.upsertProfile({ userId: '5', chatId: '5', username: 'x', displayName: 'x', nameTag: 'x' });
+  store.assignSeat('5', 'C2');
+  const presence = new Presence(store);
+  assert.equal(presence.snapshot().seats[0].avatar, null);
+  store.setAvatar('5', 'A1-C620T');
+  assert.equal(presence.snapshot().seats[0].avatar, 'A1-C620T');
+  store.setAvatar('5', null);
+  assert.equal(presence.snapshot().seats[0].avatar, null);
 });

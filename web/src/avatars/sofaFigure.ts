@@ -1,5 +1,5 @@
 /**
- * The owner's figure on the lounge sofa. Same parts and palette as the desk figure,
+ * The owner's figure on the lounge sofa. Same parts and outfit as the desk figure,
  * but its own rig and poses:
  *   working → sitting upright, phone held in both hands, looking down at it
  *   idle    → lying along the sofa, head propped on the armrest, phone face-down on the chest
@@ -11,18 +11,9 @@
 import * as THREE from 'three';
 import { MATERIALS } from '../office/materials';
 import type { SofaItem } from '../office/types';
-import {
-  type FigureLook,
-  type FigurePose,
-  GEO,
-  PANTS,
-  SHOES,
-  SHOULDER_X,
-  SHOULDER_Y,
-  flat,
-  mesh,
-  solveArmTo,
-} from './figure';
+import type { AvatarSetup } from '../../../shared/avatar';
+import { type FigurePose, GEO, SHOES, SHOULDER_X, SHOULDER_Y, solveArmTo } from './figure';
+import { Outfit, flat, hangFor, mesh } from './outfit';
 
 const SEAT_TOP = 0.42;
 const BACK_DEPTH = 0.18;
@@ -42,6 +33,11 @@ const HEAD_Y = SHOULDER_Y + 0.2;
 const LIE_TILT = 0.4;
 /** Lying: pelvis height so the back of the torso just touches the cushion. */
 const LIE_PELVIS_Y = SEAT_TOP + 0.1;
+/**
+ * Lying: hair swing in the head frame. Torso (LIE_TILT) + head (0.2) put the head frame 0.6 rad
+ * from the body; this points the hair past the crown, along the sofa and just down onto the armrest.
+ */
+const LIE_HANG = Math.PI - 0.25 - (LIE_TILT + 0.2);
 
 const GEOM = {
   thigh: new THREE.BoxGeometry(0.15, 0.14, THIGH + 0.04).translate(0, 0, THIGH / 2),
@@ -69,6 +65,9 @@ interface Pose {
   hips: [number, number];
   knees: [number, number];
   phone: { y: number; z: number; tilt: number };
+  /** Long hair swing (head frame), see hangFor(); the ponytail's own swing, if any. */
+  hang: number;
+  tail?: { x: number; z: number };
 }
 
 const POSES: Record<FigurePose, Pose> = {
@@ -80,6 +79,7 @@ const POSES: Record<FigurePose, Pose> = {
     knees: [0, 0],
     // in front of the chest, top tipped away so the screen faces the eyes
     phone: { y: 0.26, z: 0.3, tilt: 1.06 },
+    hang: hangFor(0.5),
   },
   idle: {
     torso: LIE_TILT,
@@ -90,6 +90,10 @@ const POSES: Record<FigurePose, Pose> = {
     knees: [-0.46, -Math.PI / 2],
     // face-down on the chest
     phone: { y: 0.25, z: 0.135, tilt: 0 },
+    // long hair fans out past the crown over the armrest instead of hanging into the cushion;
+    // the ponytail is swept to the side of the head, towards the front of the sofa
+    hang: LIE_HANG,
+    tail: { x: 0.3, z: -1.2 },
   },
 };
 
@@ -109,9 +113,7 @@ export class SofaFigure {
   private readonly elbows: THREE.Group[] = [];
   private readonly hips: THREE.Group[] = [];
   private readonly knees: THREE.Group[] = [];
-  private readonly shirtMeshes: THREE.Mesh[] = [];
-  private readonly skinMeshes: THREE.Mesh[] = [];
-  private readonly hairMesh: THREE.Mesh;
+  private readonly outfit: Outfit;
   private pose: FigurePose = 'idle';
   private readonly sitAt: THREE.Vector3;
   private readonly lieAt: THREE.Vector3;
@@ -131,16 +133,21 @@ export class SofaFigure {
     );
 
     this.root.add(this.body);
+    this.outfit = new Outfit(this.head);
+    const o = this.outfit;
 
     for (const sx of [-1, 1]) {
       const hip = new THREE.Group();
       hip.position.set(sx * 0.1, -HIP_DROP, 0);
       this.body.add(hip);
-      hip.add(mesh(GEOM.thigh, flat(PANTS)));
+      const thigh = mesh(GEOM.thigh, flat(0));
+      hip.add(thigh);
       const knee = new THREE.Group();
       knee.position.z = THIGH;
       hip.add(knee);
-      knee.add(mesh(GEOM.shin, flat(PANTS)), mesh(GEOM.shoe, flat(SHOES)));
+      const shin = mesh(GEOM.shin, flat(0));
+      knee.add(shin, mesh(GEOM.shoe, flat(SHOES)));
+      o.pants.push(thigh, shin);
       this.hips.push(hip);
       this.knees.push(knee);
     }
@@ -149,16 +156,13 @@ export class SofaFigure {
     const chest = mesh(GEO.torso, flat(0xffffff));
     chest.scale.z = 0.62;
     this.torso.add(chest);
-    this.shirtMeshes.push(chest);
+    o.shirt.push(chest);
 
     this.head.position.set(0, HEAD_Y, 0.01);
     this.torso.add(this.head);
     const face = mesh(GEO.head, flat(0xffffff));
     this.head.add(face);
-    this.skinMeshes.push(face);
-    this.hairMesh = mesh(GEO.hair, flat(0x000000), 0, 0.015, -0.012);
-    this.hairMesh.rotation.x = -0.35;
-    this.head.add(this.hairMesh);
+    o.skin.push(face);
 
     for (const sx of [-1, 1]) {
       const shoulder = new THREE.Group();
@@ -166,14 +170,14 @@ export class SofaFigure {
       this.torso.add(shoulder);
       const sleeve = mesh(GEO.upperArm, flat(0xffffff));
       shoulder.add(sleeve);
-      this.shirtMeshes.push(sleeve);
+      o.shirt.push(sleeve);
       const elbow = new THREE.Group();
       elbow.position.y = -0.3;
       shoulder.add(elbow);
       const forearm = mesh(GEO.forearm, flat(0xffffff));
       const hand = mesh(GEO.hand, flat(0xffffff));
       elbow.add(forearm, hand);
-      this.skinMeshes.push(forearm, hand);
+      o.skin.push(forearm, hand);
       this.shoulders.push(shoulder);
       this.elbows.push(elbow);
     }
@@ -186,10 +190,8 @@ export class SofaFigure {
     this.setPose('idle');
   }
 
-  setLook(look: FigureLook): void {
-    for (const m of this.shirtMeshes) m.material = flat(look.shirt);
-    for (const m of this.skinMeshes) m.material = flat(look.skin);
-    this.hairMesh.material = flat(look.hair);
+  setLook(look: AvatarSetup): void {
+    this.outfit.apply(look);
   }
 
   setPose(pose: FigurePose): void {
@@ -204,6 +206,7 @@ export class SofaFigure {
     }
     this.torso.rotation.set(p.torso, 0, 0);
     this.head.rotation.set(p.head, 0, 0);
+    this.outfit.head.setHang(p.hang, p.tail);
     for (let i = 0; i < 2; i++) {
       const side = i === 0 ? -1 : 1;
       this.shoulders[i]!.rotation.set(p.arm.shoulderX, -side * p.arm.inward, 0);

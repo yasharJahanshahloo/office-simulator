@@ -53,7 +53,7 @@ export function mountDebugPanel(host: HTMLElement, opts: DebugPanelOptions): voi
     const base = demoSnapshot(7, opts.seatIds);
     const byId = new Map(base.seats.map((s) => [s.seatId, s]));
     const seats: SeatPresence[] = opts.seatIds.map((seatId, i) => ({
-      ...(byId.get(seatId) ?? { seatId, label: seatId.replace(/^desk-/, ''), name: `@user${i + 1}`, userKey: `u${i}` }),
+      ...(byId.get(seatId) ?? { seatId, label: seatId.replace(/^desk-/, ''), name: `@user${i + 1}`, userKey: `u${i}`, avatar: null }),
       state,
       busy,
       tool: (['claude', 'cursor', 'codex', 'hermes'] as const)[i % 4]!,

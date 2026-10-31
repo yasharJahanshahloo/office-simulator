@@ -18,8 +18,10 @@ import { MATERIALS } from '../office/materials';
 import type { DeskItem, OfficeLayout, Seat, SofaItem } from '../office/types';
 import type { PresenceSnapshot, SeatPresence } from '../presence/contract';
 import { OWNER_SEAT_ID } from '../presence/owner';
-import { Figure, type FigureLook, type FigurePose, lookFor, shirtCss } from './figure';
+import type { AvatarSetup } from '../../../shared/avatar';
+import { Figure, type FigurePose } from './figure';
 import { NameTag, PLAQUE_D, PLAQUE_W, toolIconMaterial } from './labels';
+import { setupFor, shirtCss } from './setup';
 import { SofaFigure } from './sofaFigure';
 
 const TYPING_RATE = 2.2; // taps per second per hand
@@ -58,7 +60,7 @@ const glowMaterial = (() => {
 /** What both the desk figure and the sofa figure can do. */
 interface Avatar {
   readonly root: THREE.Group;
-  setLook(look: FigureLook): void;
+  setLook(look: AvatarSetup): void;
   setPose(pose: FigurePose): void;
   animate(time: number, rate: number): void;
 }
@@ -204,6 +206,8 @@ export class AvatarLayer {
     slot.presence = p;
     const state = p?.state;
 
+    const look = p && setupFor(p);
+
     // name tag: any registered employee, whatever their state
     if (p) {
       if (!slot.tag) {
@@ -213,7 +217,7 @@ export class AvatarLayer {
         if (slot.kind === 'sofa') slot.tag.root.position.y = slot.tagPosition.y;
         this.root.add(slot.tag.root);
       }
-      slot.tag.set(p.name, shirtCss(p.userKey));
+      slot.tag.set(p.name, shirtCss(look!));
     } else if (slot.tag) {
       this.root.remove(slot.tag.root);
       slot.tag.dispose();
@@ -228,7 +232,7 @@ export class AvatarLayer {
         slot.anchor.add(slot.figure.root);
       }
       slot.figure.root.visible = true;
-      slot.figure.setLook(lookFor(p!.userKey));
+      slot.figure.setLook(look!);
       slot.figure.setPose(state);
       if (slot.figure instanceof SofaFigure) slot.figure.iconPoint(slot.iconBase);
     } else if (slot.figure) {

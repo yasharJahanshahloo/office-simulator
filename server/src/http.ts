@@ -114,6 +114,8 @@ function handleStream(d: HttpDeps, req: http.IncomingMessage, res: http.ServerRe
 }
 
 function serveStatic(root: string, pathname: string, res: http.ServerResponse): void {
+  // The avatar creator is a second page of the web build.
+  if (pathname === '/avatar' || pathname === '/avatar/') pathname = '/avatar.html';
   const safe = path.normalize(decodeURIComponent(pathname)).replace(/^(\.\.[/\\])+/, '');
   let file = path.join(root, safe);
   if (!file.startsWith(root)) return json(res, 403, { error: 'forbidden' });

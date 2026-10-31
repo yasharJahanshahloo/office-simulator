@@ -2,6 +2,8 @@
  * Fake presence for `?demo=<seed>` and the debug panel: a deterministic
  * PresenceSnapshot that goes through the same rendering path as live data.
  */
+import { encodeAvatar } from '../../../shared/avatar';
+import { randomAvatar } from '../avatars/setup';
 import type { AvatarState, PresenceSnapshot, SeatPresence, Tool } from './contract';
 import { OWNER_SEAT_ID, OWNER_SEAT_LABEL } from './owner';
 import { TOOL_ORDER } from './tools';
@@ -57,8 +59,25 @@ function shuffle<T>(rand: () => number, items: T[]): T[] {
   return items;
 }
 
+/** The owner's demo avatar: short black hair, beard, glasses, navy shirt, jeans. */
+const OWNER_AVATAR = encodeAvatar({
+  skin: 2,
+  hairStyle: 'short',
+  hairColor: 0,
+  facialHair: 'beard',
+  shirt: 1,
+  pants: 2,
+  glasses: true,
+  headphones: false,
+});
+
 /** Fixed owner entry for demos; the state is the only thing that varies. */
-export function demoOwner(state: AvatarState, busy: boolean, tool: Tool | null = 'claude'): SeatPresence {
+export function demoOwner(
+  state: AvatarState,
+  busy: boolean,
+  tool: Tool | null = 'claude',
+  avatar: string | null = OWNER_AVATAR,
+): SeatPresence {
   return {
     seatId: OWNER_SEAT_ID,
     label: OWNER_SEAT_LABEL,
@@ -67,6 +86,7 @@ export function demoOwner(state: AvatarState, busy: boolean, tool: Tool | null =
     state,
     busy: state === 'working' && busy,
     tool: state === 'away' ? null : tool,
+    avatar,
   };
 }
 
@@ -80,6 +100,7 @@ const OWNER_CYCLE: Array<[AvatarState, boolean]> = [
 /**
  * About 80% of `seatIds` (desk seats) get a registered employee. The first few registered seats are
  * forced to cover every look (working/busy per tool, idle, away) so a screenshot shows them all.
+ * Most employees get a random avatar code, the others the automatic look; the owner has a fixed code.
  */
 export function demoSnapshot(seed: number, seatIds: readonly string[], withOwner = false): PresenceSnapshot {
   const rand = mulberry32(seed);
@@ -94,6 +115,8 @@ export function demoSnapshot(seed: number, seatIds: readonly string[], withOwner
     ['away', false, null],
   ];
 
+  // avatars come from their own sequence so the seats and states stay as they were per seed
+  const avatarRand = mulberry32(seed * 7919 + 13);
   const seats: SeatPresence[] = registered.map((seatId, i) => {
     const r = rand();
     const [state, busy, tool] =
@@ -111,6 +134,8 @@ export function demoSnapshot(seed: number, seatIds: readonly string[], withOwner
       state,
       busy,
       tool,
+      // about two thirds designed their own avatar; the rest keep the automatic look
+      avatar: avatarRand() < 0.65 ? encodeAvatar(randomAvatar(avatarRand)) : null,
     };
   });
   // the owner's sofa seat is added on top, without touching the desk random sequence

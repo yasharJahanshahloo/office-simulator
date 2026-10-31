@@ -63,6 +63,7 @@ viewToggle.innerHTML = `
   <button data-view="angled">3D</button>
   <button data-view="top">Top-down</button>
   <button data-reset>Reset</button>
+  <a class="avatar-link" href="/avatar" lang="fa" dir="rtl">ساخت آواتار</a>
 `;
 app.appendChild(viewToggle);
 const syncToggle = () => {

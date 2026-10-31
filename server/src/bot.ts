@@ -4,6 +4,7 @@ import type { BaleApi, BaleCallbackQuery, BaleMessage, BaleUser, InlineKeyboard 
 import type { CredentialCodec } from './credential';
 import type { Store, UserRow } from './db';
 import { seatMapPng } from './seatMap';
+import { canonicalAvatarCode, decodeAvatar, describeAvatarFa } from '../../shared/avatar';
 import { DESK_LABELS, parseAnyLabel, parseLabel, seatName } from './seats';
 import { buildSetupZip } from './setupZip';
 
@@ -34,7 +35,15 @@ const T = {
     'این بازوی «دفتر هوش مصنوعی» است: نمای سه‌بعدی دفتر که هر وقت با یک ایجنت هوش مصنوعی ' +
     '(Claude — شامل Claude Code، Cowork و چت دسکتاپ — Cursor، Codex یا Hermes) کار کنید، آواتار شما را پشت میزتان مشغول کار نشان می‌دهد.\n\n' +
     'برای شروع، دکمهٔ زیر را بزنید.',
+  greetingAvatar: (url: string) => `\n\n🎨 آواتار خودتان را بسازید: ${url}/avatar`,
   startButton: '🚀 شروع',
+  avatarSet: (desc: string, url: string) => `✅ آواتار شما به‌روز شد.\n${desc}\n\n🏢 نمای دفتر: ${url}/`,
+  avatarNeedsSeat: '\n\nبرای دیده شدن در دفتر، اول با دکمهٔ «🚀 شروع» میزتان را انتخاب کنید.',
+  avatarReset: (url: string) => `آواتار شما به حالت خودکار برگشت.\n🏢 نمای دفتر: ${url}/`,
+  avatarInvalid: (url: string) =>
+    `این کد آواتار معتبر نیست.\nدر ${url}/avatar آواتارتان را بسازید و با دکمهٔ «کپی دستور» دستور را کپی کنید (مثلاً /avatar A1-7K3Q9).`,
+  avatarHowTo: (url: string) =>
+    `🎨 آواتار خودتان را در ${url}/avatar بسازید، بعد دستوری را که آنجا کپی می‌کنید همین‌جا بفرستید (مثلاً /avatar A1-7K3Q9).\nبرای برگشت به حالت خودکار: /avatar reset`,
   mapCaption:
     'نقشهٔ میزها 👆\n' +
     'میزهای سبز آزادند و میزهای خاکستری قبلاً انتخاب شده‌اند.\n\n' +
@@ -184,6 +193,9 @@ export class Bot {
       if (handled) return;
     }
 
+    if (command === '/avatar') return this.setAvatar(user, args.join(' '));
+    // Deep link from /avatar: ble.ir/office_sims_bot?start=avatar_A1-XXXXX arrives as "/start avatar_A1-XXXXX".
+    if (command === '/start' && args[0]?.startsWith('avatar_')) return this.setAvatar(user, args[0].slice('avatar_'.length));
     if (command === '/start' || !text) return this.sendGreeting(user);
     if (text.startsWith('/')) return this.sendGreeting(user);
 
@@ -212,7 +224,25 @@ export class Bot {
 
   private sendGreeting(user: UserRow): Promise<unknown> {
     const kb: InlineKeyboard = { inline_keyboard: [[{ text: T.startButton, callback_data: 'setup' }]] };
-    return this.d.api.sendMessage(user.chat_id, T.greeting, kb);
+    return this.d.api.sendMessage(user.chat_id, T.greeting + T.greetingAvatar(this.d.publicUrl), kb);
+  }
+
+  private async setAvatar(user: UserRow, input: string): Promise<unknown> {
+    const url = this.d.publicUrl;
+    const arg = input.trim();
+    if (!arg) return this.d.api.sendMessage(user.chat_id, T.avatarHowTo(url));
+    if (arg.toLowerCase() === 'reset') {
+      this.d.store.setAvatar(user.user_id, null);
+      this.d.onSeatsChanged();
+      return this.d.api.sendMessage(user.chat_id, T.avatarReset(url));
+    }
+    const code = canonicalAvatarCode(arg);
+    if (!code) return this.d.api.sendMessage(user.chat_id, T.avatarInvalid(url));
+    this.d.store.setAvatar(user.user_id, code);
+    this.d.onSeatsChanged();
+    console.log(`[bot] avatar ${user.name_tag} -> ${code}`);
+    const text = T.avatarSet(describeAvatarFa(decodeAvatar(code)!), url) + (user.seat_label ? '' : T.avatarNeedsSeat);
+    return this.d.api.sendMessage(user.chat_id, text);
   }
 
   private sendNoSeat(user: UserRow): Promise<unknown> {

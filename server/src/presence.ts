@@ -78,6 +78,7 @@ export class Presence {
       state: working ? 'working' : activeToday ? 'idle' : 'away',
       busy,
       tool: activeToday ? tool : null,
+      avatar: u.avatar ?? null,
     };
   }
 

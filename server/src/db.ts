@@ -18,6 +18,8 @@ export interface UserRow {
   tools_seen: string;
   /** Reporter script version from the latest event, e.g. "2". */
   reporter_v: string | null;
+  /** Avatar code from /avatar (canonical "A1-XXXXX"), or null for the automatic look. */
+  avatar: string | null;
 }
 
 export class Store {
@@ -56,6 +58,7 @@ export class Store {
   private migrate(): void {
     const cols = (this.db.prepare('PRAGMA table_info(users)').all() as { name: string }[]).map((c) => c.name);
     if (!cols.includes('reporter_v')) this.db.exec('ALTER TABLE users ADD COLUMN reporter_v TEXT');
+    if (!cols.includes('avatar')) this.db.exec('ALTER TABLE users ADD COLUMN avatar TEXT');
     const done = (key: string) => this.db.prepare('SELECT 1 FROM meta WHERE key = ?').get(key) !== undefined;
     if (!done('purge-test-activity')) {
       // Before 2026-10-31 evening, install test pings were recorded as AI activity. Drop that.
@@ -67,6 +70,10 @@ export class Store {
         INSERT INTO meta (key, value) VALUES ('purge-test-activity', datetime('now'));
       `);
     }
+  }
+
+  setAvatar(userId: string, code: string | null): void {
+    this.db.prepare('UPDATE users SET avatar = ? WHERE user_id = ?').run(code, userId);
   }
 
   setReporterVersion(userId: string, version: string): void {
