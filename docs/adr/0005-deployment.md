@@ -18,4 +18,7 @@ Status: accepted (2026-10-31)
 - Server reaches GitHub over SSH (authenticated as yasharJahanshahloo) and `tapi.bale.ai` directly.
 - Docker 29.9.1 works without sudo; `docker compose version` hung during the check — investigate at deploy time
   (moot: Docker not used, see above).
-- Ports in use on the server include 3999 and 8080; the app will use 8090.
+- Ports in use on the server include 3999 and 8080; the app uses 8090.
+- The server's disk is very slow under load (synchronous writes ~11 KB/s, IO pressure ~60%):
+  SQLite runs WAL + `synchronous=NORMAL`, activity writes are throttled to one per user per 30 s,
+  and `deploy.sh` skips `npm ci` when the lockfile is unchanged. Cold start (tsx compile) takes a few seconds.
