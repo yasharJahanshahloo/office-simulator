@@ -114,6 +114,16 @@ export class Store {
     }
   }
 
+  /** Admin move: put the user on `label`, leaving any previous seat. False if someone else holds it. */
+  moveToSeat(userId: string, label: string): boolean {
+    const holder = this.userAtSeat(label);
+    if (holder && holder.user_id !== userId) return false;
+    this.db
+      .prepare('UPDATE users SET seat_label = ?, registered_at = COALESCE(registered_at, ?) WHERE user_id = ?')
+      .run(label, new Date().toISOString(), userId);
+    return true;
+  }
+
   /** Returns the user that was unseated, if any. */
   unassignSeat(label: string): UserRow | undefined {
     const user = this.userAtSeat(label);

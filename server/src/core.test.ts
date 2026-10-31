@@ -4,7 +4,7 @@ import { nameTagFor } from './bot';
 import { CredentialCodec } from './credential';
 import { Store } from './db';
 import { Presence } from './presence';
-import { DESK_LABELS, parseLabel } from './seats';
+import { DESK_LABELS, labelOf, parseAnyLabel, parseLabel, seatIdOf } from './seats';
 
 const KEY = 'a'.repeat(64);
 
@@ -24,6 +24,20 @@ test('parseLabel normalises case, spaces and Persian/Arabic digits', () => {
   assert.equal(parseLabel('desk-E4'), 'E4');
   assert.equal(parseLabel('E9'), null);
   assert.equal(parseLabel('meeting-small-1'), null);
+});
+
+test('reserved SOFA seat: admin-only label, maps to the sofa seat', () => {
+  assert.equal(parseLabel('sofa'), null, 'users cannot type it');
+  assert.equal(parseAnyLabel(' sofa '), 'SOFA');
+  assert.equal(seatIdOf('SOFA'), 'lounge-sofa-1');
+  assert.equal(labelOf('lounge-sofa-1'), 'SOFA');
+  assert.ok(!DESK_LABELS.includes('SOFA'), 'not on the seat map');
+  const store = tempStore();
+  store.upsertProfile({ userId: '1', chatId: '1', username: 'boss', displayName: 'b', nameTag: 'boss' });
+  store.assignSeat('1', 'A1');
+  assert.equal(store.moveToSeat('1', 'SOFA'), true);
+  assert.equal(store.getUser('1')!.seat_label, 'SOFA');
+  assert.equal(store.userAtSeat('A1'), undefined, 'old desk freed');
 });
 
 test('credential round-trips and rejects tampering', () => {

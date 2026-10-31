@@ -4,7 +4,7 @@ import type { BaleApi, BaleCallbackQuery, BaleMessage, BaleUser, InlineKeyboard 
 import type { CredentialCodec } from './credential';
 import type { Store, UserRow } from './db';
 import { seatMapPng } from './seatMap';
-import { DESK_LABELS, parseLabel } from './seats';
+import { DESK_LABELS, parseAnyLabel, parseLabel, seatName } from './seats';
 import { buildSetupZip } from './setupZip';
 
 export interface BotDeps {
@@ -43,8 +43,8 @@ const T = {
     `«${input}» برچسب هیچ میزی نیست. یکی از برچسب‌های روی نقشه را بفرستید (مثلاً A1).`,
   seatTaken: (label: string) => `میز ${label} قبلاً انتخاب شده است. لطفاً میز دیگری را انتخاب کنید.`,
   registered: (label: string, name: string) =>
-    `✅ میز ${label} به نام شما ثبت شد.\nنام روی میز: ${name}\n\nفایل نصب را در پیام بعدی می‌فرستم.`,
-  alreadyRegistered: (label: string) => `شما قبلاً در میز ${label} ثبت شده‌اید.`,
+    `✅ ${seatName(label)} به نام شما ثبت شد.\nنام روی میز: ${name}\n\nفایل نصب را در پیام بعدی می‌فرستم.`,
+  alreadyRegistered: (label: string) => `شما قبلاً در ${seatName(label)} ثبت شده‌اید.`,
   zipCaption:
     '📦 فایل نصب شما\n\n' +
     '۱. فایل را از حالت فشرده خارج کنید.\n' +
@@ -58,7 +58,7 @@ const T = {
   reissued: '🔄 فایل جدید صادر شد. فایل‌های قبلی دیگر کار نمی‌کنند؛ این فایل را دوباره نصب کنید.',
   connected: (tool: Tool, label: string, officeUrl: string) =>
     `✅ وصل شد!\n${TOOL_NAMES[tool]} به دفتر وصل شد. از این به بعد وقتی با ایجنت کار کنید، ` +
-    `آواتارتان پشت میز ${label} مشغول کار نشان داده می‌شود.\n\n` +
+    `آواتارتان در ${seatName(label)} مشغول کار نشان داده می‌شود.\n\n` +
     `🏢 نمای دفتر: ${officeUrl}\n\n` +
     'اگر ایجنت همین الان باز است، یک بار ببندید و دوباره باز کنید تا تنظیمات جدید را بخواند.',
   noSeat: 'شما هنوز میزی ندارید. دکمهٔ «شروع» را بزنید تا میزتان را انتخاب کنید.',
@@ -66,13 +66,18 @@ const T = {
     'راهنمای مدیر\n\n' +
     '/report — گزارش کاربران ثبت‌شده (+ فایل CSV)\n' +
     '/unregister A1 — آزاد کردن یک میز\n' +
+    '/assign SOFA 123456 — دادن یک جا (حتی جاهای رزرو مثل SOFA) به یک کاربر\n' +
     '/ban 123456 — مسدود کردن کاربر (میزش هم آزاد می‌شود)\n' +
     '/unban 123456 — رفع مسدودیت\n' +
     '/help — همین راهنما\n\n' +
     'فهرست کاربران مجاز: فایل data/allowlist.txt روی سرور (هر خط یک شناسهٔ بله).',
-  adminNewRegistration: (name: string, id: string, label: string) => `🆕 ثبت‌نام: ${name} (${id}) ← میز ${label}`,
-  adminUnregistered: (label: string, name: string) => `میز ${label} آزاد شد (قبلاً: ${name}).`,
-  adminSeatEmpty: (label: string) => `میز ${label} از قبل خالی است.`,
+  adminNewRegistration: (name: string, id: string, label: string) => `🆕 ثبت‌نام: ${name} (${id}) ← ${seatName(label)}`,
+  adminUnregistered: (label: string, name: string) => `${seatName(label)} آزاد شد (قبلاً: ${name}).`,
+  adminSeatEmpty: (label: string) => `${seatName(label)} از قبل خالی است.`,
+  adminAssigned: (label: string, name: string) => `✅ ${seatName(label)} به ${name} داده شد.`,
+  adminAssignUsage: 'مثال: /assign SOFA 123456 — کاربر باید قبلاً بازو را استارت کرده باشد.',
+  adminAssignUnknownUser: (id: string) => `کاربر ${id} هنوز بازو را استارت نکرده است.`,
+  adminAssignTaken: (label: string, name: string) => `${seatName(label)} در اختیار ${name} است. اول /unregister کنید.`,
   adminBadLabel: 'برچسب میز نامعتبر است. مثال: /unregister A1',
   adminBanned: (id: string, seat: string | null) => `کاربر ${id} مسدود شد.${seat ? ` میز ${seat} آزاد شد.` : ''}`,
   adminUnbanned: (id: string) => `مسدودیت کاربر ${id} برداشته شد.`,
@@ -290,7 +295,7 @@ export class Bot {
         await this.sendReport(admin);
         return true;
       case '/unregister': {
-        const label = parseLabel(args.join(' '));
+        const label = parseAnyLabel(args.join(' '));
         if (!label) {
           await reply(T.adminBadLabel);
           return true;
@@ -302,6 +307,26 @@ export class Bot {
         }
         this.d.onSeatsChanged();
         await reply(T.adminUnregistered(label, user.name_tag));
+        return true;
+      }
+      case '/assign': {
+        const label = args[0] ? parseAnyLabel(args[0]) : null;
+        const id = args[1]?.replace(/[^0-9]/g, '');
+        if (!label || !id) {
+          await reply(T.adminAssignUsage);
+          return true;
+        }
+        const target = this.d.store.getUser(id);
+        if (!target) {
+          await reply(T.adminAssignUnknownUser(id));
+          return true;
+        }
+        if (!this.d.store.moveToSeat(id, label)) {
+          await reply(T.adminAssignTaken(label, this.d.store.userAtSeat(label)!.name_tag));
+          return true;
+        }
+        this.d.onSeatsChanged();
+        await reply(T.adminAssigned(label, target.name_tag));
         return true;
       }
       case '/ban':
