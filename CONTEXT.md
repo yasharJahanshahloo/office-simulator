@@ -22,6 +22,7 @@ Purpose: make AI usage visible and social, to increase AI adoption across the co
 - **Admin** — can unregister seats, ban Bale user ids, and get a registration report, via the bot.
 - **Bale bot** — onboarding entry point: registration to a seat, then delivers the setup zip.
 - **Name tag** — Bale `@username` (or first 14 chars of display name if none), shown on their desk (on the table).
+- **Avatar code** — short versioned string (e.g. `A1-7K3Q9XPM`) encoding an avatar setup from `/avatar`; applied with the bot command `/avatar <code>`.
 - **Allowlist** — Bale user ids permitted to register; provided by the admin.
 - **Avatar state**
   - **working** — an activity event was received within the activity window.
@@ -34,6 +35,7 @@ Purpose: make AI usage visible and social, to increase AI adoption across the co
 - [ADR-0002](docs/adr/0002-privacy-minimal-payload-opt-in.md) — minimal payload, opt-in
 - [ADR-0003](docs/adr/0003-ambient-display-internal-hosting.md) — ambient display, internal hosting, no auth in v1
 - [ADR-0004](docs/adr/0004-onboarding-via-bale-bot.md) — onboarding via Bale bot; agents self-install via install.md
+- [ADR-0006](docs/adr/0006-employee-avatars.md) — avatar creator at /avatar, code applied via the bot
 - [ADR-0005](docs/adr/0005-deployment.md) — GitHub → dev server LNX-HDD-22, systemd user service
 - Working = 5-min activity window + 'agent busy' animation; Cursor Tab does not count.
 - Avatars: low-poly figures, shirt colour, name tag on the desk, tool icon when working; static at desks in v1.
