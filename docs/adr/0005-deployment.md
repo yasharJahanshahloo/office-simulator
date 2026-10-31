@@ -6,7 +6,7 @@ Status: accepted (2026-10-31)
 - Source of truth: GitHub `git@github.com:yasharJahanshahloo/office-simulator.git`.
 - Workflow: develop on the laptop (`~/simulator`) → push → on the dev server `git pull`, build, deploy.
 - Target: dev server `LNX-HDD-22` (172.16.24.90, office LAN only; see `~/server/AGENTS.md` on the laptop),
-  checkout at `~/office-simulator`.
+  checkout at `/mnt/ssd/home/office-simulator` (SSD), symlinked from `~/office-simulator` like the server's other projects.
 - One Node process: web app + event API + Bale bot (long polling), run as the **systemd user service**
   `office-presence` (same pattern as the server's other bots; linger keeps it up across reboots).
   SQLite file and allowlist in `server/data/`. `deploy/deploy.sh` pulls, builds, tests and restarts.

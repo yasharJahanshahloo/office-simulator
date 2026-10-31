@@ -28,11 +28,11 @@ Only one process may poll the Bale bot at a time. Leave the token unset locally 
 
 ## Deploy
 
-Dev server `LNX-HDD-22` (172.16.24.90, office LAN), checkout at `~/office-simulator`, served on port 8090 as the systemd user service `office-presence`.
+Dev server `LNX-HDD-22` (172.16.24.90, office LAN). The checkout lives on the SSD at `/mnt/ssd/home/office-simulator`, symlinked from `~/office-simulator` like the server's other projects. It serves on port 8090 as the systemd user service `office-presence`.
 
 1. Push to `main` on GitHub.
 2. On the server, run `~/office-simulator/deploy/deploy.sh`. It pulls, builds, tests and restarts the service.
 
 The secrets live only in `~/office-simulator/server/.env` on the server. The allowlist is `server/data/allowlist.txt` there, one Bale user id per line, and is re-read on every message.
 
-Logs: `journalctl --user -u office-presence -f`.
+Logs: `journalctl --user -u office-presence -f`. Each bot update is logged; set `BOT_DEBUG=1` in `.env` to dump raw updates.
