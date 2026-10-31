@@ -59,7 +59,7 @@ function handleEvent(d: HttpDeps, req: http.IncomingMessage, res: http.ServerRes
     else chunks.push(c);
   });
   req.on('end', () => {
-    let body: { credential?: unknown; tool?: unknown; event?: unknown };
+    let body: { credential?: unknown; tool?: unknown; event?: unknown; v?: unknown };
     try {
       body = JSON.parse(Buffer.concat(chunks).toString('utf8'));
     } catch {
@@ -67,20 +67,33 @@ function handleEvent(d: HttpDeps, req: http.IncomingMessage, res: http.ServerRes
     }
     const tool = body.tool as Tool;
     const kind = body.event as ActivityKind;
+    const version = typeof body.v === 'string' ? body.v.slice(0, 8) : '?';
     if (!TOOLS.includes(tool) || !ACTIVITY_KINDS.includes(kind) || typeof body.credential !== 'string') {
+      console.log(`[event] rejected 400: tool=${String(body.tool).slice(0, 12)} event=${String(body.event).slice(0, 12)}`);
       return json(res, 400, { error: 'invalid event' });
     }
     const cred = d.codec.decode(body.credential.trim());
     const user = cred ? d.store.getUser(cred.userId) : undefined;
-    if (!cred || !user || user.cred_version !== cred.version || d.store.isBanned(user.user_id)) {
+    const why = !cred ? 'undecodable' : !user ? `unknown user ${cred.userId}` : user.cred_version !== cred.version
+      ? `stale credential v${cred.version} (current v${user.cred_version}) for ${user.name_tag}`
+      : d.store.isBanned(user.user_id) ? `banned ${user.user_id}` : null;
+    if (why || !user) {
+      console.log(`[event] rejected 401: ${why} (${tool} ${kind} r${version})`);
       return json(res, 401, { error: 'invalid credential' });
     }
-    if (!user.seat_label) return json(res, 409, { error: 'no seat registered' });
+    if (!user.seat_label) {
+      console.log(`[event] rejected 409: ${user.name_tag} has no seat (${tool} ${kind} r${version})`);
+      return json(res, 409, { error: 'no seat registered' });
+    }
 
-    d.presence.record(user.user_id, tool, kind);
+    console.log(`[event] ${user.seat_label} ${user.name_tag} ${tool} ${kind} r${version}`);
+    d.store.setReporterVersion(user.user_id, version);
     if (kind === 'test') {
+      // An install check proves the wiring, not AI use: it never changes the avatar.
       d.store.markConnected(user.user_id);
       d.onTestPing(user.user_id, tool);
+    } else {
+      d.presence.record(user.user_id, tool, kind);
     }
     json(res, 200, { ok: true, seat: user.seat_label });
   });

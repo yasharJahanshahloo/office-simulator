@@ -14,8 +14,10 @@ export interface UserRow {
   connected_at: string | null;
   last_event_at: string | null;
   last_tool: string | null;
-  /** Comma-separated set of tools ever seen. */
+  /** Comma-separated set of tools ever seen (real activity only). */
   tools_seen: string;
+  /** Reporter script version from the latest event, e.g. "2". */
+  reporter_v: string | null;
 }
 
 export class Store {
@@ -42,11 +44,33 @@ export class Store {
         last_tool     TEXT,
         tools_seen    TEXT NOT NULL DEFAULT ''
       );
+      CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS bans (
         user_id   TEXT PRIMARY KEY,
         banned_at TEXT NOT NULL
       );
     `);
+    this.migrate();
+  }
+
+  private migrate(): void {
+    const cols = (this.db.prepare('PRAGMA table_info(users)').all() as { name: string }[]).map((c) => c.name);
+    if (!cols.includes('reporter_v')) this.db.exec('ALTER TABLE users ADD COLUMN reporter_v TEXT');
+    const done = (key: string) => this.db.prepare('SELECT 1 FROM meta WHERE key = ?').get(key) !== undefined;
+    if (!done('purge-test-activity')) {
+      // Before 2026-10-31 evening, install test pings were recorded as AI activity. Drop that.
+      this.db.exec(`
+        UPDATE users SET tools_seen = '';
+        UPDATE users SET last_event_at = NULL, last_tool = NULL
+          WHERE connected_at IS NOT NULL AND last_event_at IS NOT NULL
+            AND julianday(last_event_at) - julianday(connected_at) < 3.0 / 1440;
+        INSERT INTO meta (key, value) VALUES ('purge-test-activity', datetime('now'));
+      `);
+    }
+  }
+
+  setReporterVersion(userId: string, version: string): void {
+    this.db.prepare('UPDATE users SET reporter_v = ? WHERE user_id = ? AND reporter_v IS NOT ?').run(version, userId, version);
   }
 
   getUser(userId: string): UserRow | undefined {

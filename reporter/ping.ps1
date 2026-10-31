@@ -1,4 +1,4 @@
-# Office Presence ping (Windows). Reporter version 1.
+# Office Presence ping (Windows). Reporter version 2.
 #
 # Usage: powershell -NoProfile -ExecutionPolicy Bypass -File ping.ps1 <tool> <event>
 #   tool:  claude | cursor | codex | hermes
@@ -28,7 +28,7 @@ if (-not $cred -or -not $url) {
   Noop
 }
 
-$body = @{ credential = $cred; tool = $Tool; event = $Kind; v = '1' } | ConvertTo-Json -Compress
+$body = @{ credential = $cred; tool = $Tool; event = $Kind; v = '2' } | ConvertTo-Json -Compress
 
 if ($Kind -eq 'test') {
   try {

@@ -5,8 +5,12 @@ import { seatIdOf } from './seats';
 
 /** One activity event keeps an avatar "working" this long. */
 export const WORKING_WINDOW_MS = 5 * 60_000;
-/** A turn with no stop event stops counting as busy after this long without events. */
-export const BUSY_TIMEOUT_MS = 2 * 60_000;
+/**
+ * An open agent turn (prompt or tool seen, no stop yet) keeps the avatar working and busy for
+ * this long after its last event, so a long-running tool call doesn't drop to idle. Tools don't
+ * always send a stop (e.g. Claude Code on Ctrl-C), hence the cap.
+ */
+export const OPEN_TURN_MS = 10 * 60_000;
 
 export function tehranDay(d: Date): string {
   return d.toLocaleDateString('en-CA', { timeZone: 'Asia/Tehran' });
@@ -64,8 +68,8 @@ export class Presence {
     const last = live ? new Date(live.lastEventMs) : u.last_event_at ? new Date(u.last_event_at) : null;
     const tool = (live?.lastTool ?? u.last_tool) as Tool | null;
     const activeToday = last !== null && tehranDay(last) === today;
-    const working = last !== null && now.getTime() - last.getTime() < WORKING_WINDOW_MS;
-    const busy = working && !!live?.busy && now.getTime() - live.lastEventMs < BUSY_TIMEOUT_MS;
+    const busy = !!live?.busy && now.getTime() - live.lastEventMs < OPEN_TURN_MS;
+    const working = busy || (last !== null && now.getTime() - last.getTime() < WORKING_WINDOW_MS);
     return {
       seatId: seatIdOf(u.seat_label!),
       label: u.seat_label!,

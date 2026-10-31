@@ -56,9 +56,11 @@ const T = {
   copyButton: '📋 کپی دستور',
   reissueButton: '🔄 صدور فایل جدید',
   reissued: '🔄 فایل جدید صادر شد. فایل‌های قبلی دیگر کار نمی‌کنند؛ این فایل را دوباره نصب کنید.',
-  connected: (tool: Tool, label: string) =>
-    `✅ وصل شد!\nفعالیت شما با ${TOOL_NAMES[tool]} دریافت شد. از این به بعد وقتی با ایجنت کار کنید، ` +
-    `آواتارتان پشت میز ${label} مشغول کار نشان داده می‌شود.`,
+  connected: (tool: Tool, label: string, officeUrl: string) =>
+    `✅ وصل شد!\n${TOOL_NAMES[tool]} به دفتر وصل شد. از این به بعد وقتی با ایجنت کار کنید، ` +
+    `آواتارتان پشت میز ${label} مشغول کار نشان داده می‌شود.\n\n` +
+    `🏢 نمای دفتر: ${officeUrl}\n\n` +
+    'اگر ایجنت همین الان باز است، یک بار ببندید و دوباره باز کنید تا تنظیمات جدید را بخواند.',
   noSeat: 'شما هنوز میزی ندارید. دکمهٔ «شروع» را بزنید تا میزتان را انتخاب کنید.',
   adminHelp:
     'راهنمای مدیر\n\n' +
@@ -261,7 +263,7 @@ export class Bot {
     this.lastConnectedNotice.set(key, now);
     const user = this.d.store.getUser(userId);
     if (!user?.seat_label) return;
-    await this.d.api.sendMessage(user.chat_id, T.connected(tool, user.seat_label)).catch((err) => {
+    await this.d.api.sendMessage(user.chat_id, T.connected(tool, user.seat_label, this.d.publicUrl + '/')).catch((err) => {
       console.error('[bot] connected notice failed:', (err as Error).message);
     });
   }
@@ -332,15 +334,17 @@ export class Bot {
     const fmt = (iso: string | null) =>
       iso ? new Date(iso).toLocaleString('en-GB', { timeZone: 'Asia/Tehran', dateStyle: 'short', timeStyle: 'short' }) : '—';
     const lines = users.map(
-      (u) => `${u.seat_label} — ${u.name_tag} — ${u.user_id} — آخرین فعالیت: ${fmt(u.last_event_at)} — ${u.tools_seen || '—'}`,
+      (u) =>
+        `${u.seat_label} — ${u.name_tag} — ${u.user_id} — آخرین فعالیت: ${fmt(u.last_event_at)} — ${u.tools_seen || '—'}` +
+        ` — نسخه r${u.reporter_v ?? '?'}${u.connected_at ? '' : ' — ⚠️ هنوز وصل نشده'}`,
     );
     const header = `گزارش کاربران (${users.length} از ${DESK_LABELS.length} میز)\n\n`;
     await this.d.api.sendMessage(admin.chat_id, header + lines.join('\n'));
 
     const csvCell = (v: string | null | number) => `"${String(v ?? '').replaceAll('"', '""')}"`;
     const csv = [
-      ['seat', 'name_tag', 'user_id', 'username', 'display_name', 'registered_at', 'connected_at', 'last_event_at', 'tools_seen'],
-      ...users.map((u) => [u.seat_label, u.name_tag, u.user_id, u.username, u.display_name, u.registered_at, u.connected_at, u.last_event_at, u.tools_seen]),
+      ['seat', 'name_tag', 'user_id', 'username', 'display_name', 'registered_at', 'connected_at', 'last_event_at', 'tools_seen', 'reporter_v'],
+      ...users.map((u) => [u.seat_label, u.name_tag, u.user_id, u.username, u.display_name, u.registered_at, u.connected_at, u.last_event_at, u.tools_seen, u.reporter_v]),
     ]
       .map((row) => row.map(csvCell).join(','))
       .join('\n');

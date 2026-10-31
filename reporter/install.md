@@ -31,7 +31,7 @@ This folder holds `install.md`, `ping.sh`, `ping.ps1`, `credential` and `server_
 
 ### 3. Test the connection
 
-Run `PING <your-own-tool> test`, e.g. `/home/alice/.office-presence/ping.sh claude test`.
+Run `PING <tool> test` once, where `<tool>` is the tool you yourself are (`claude`, `cursor`, `codex` or `hermes`), e.g. `/home/alice/.office-presence/ping.sh codex test` if you are Codex. A test ping only checks the wiring; it never shows the employee as working.
 
 **Done when:** it prints `ok`. On anything else, stop and tell the employee the matching fix:
 
@@ -54,7 +54,7 @@ A tool counts as installed when its config directory exists or its command is on
 
 On Windows, `~` means `%USERPROFILE%`.
 
-**Done when:** you have the list of installed tools, with the config directory you will edit for each.
+**Done when:** you have the list of installed tools, with the config directory you will edit for each. Tools that are not installed get no config files and no test pings.
 
 ### 5. Add the hooks
 
@@ -69,7 +69,7 @@ For each installed tool, add the entries from its section under [Hook reference]
 
 ### 6. Test every tool
 
-For each tool you configured, run `PING <tool> test`.
+For each tool you configured in step 5, and only those, run `PING <tool> test`.
 
 **Done when:** each one prints `ok`. The employee also receives a "✅ وصل شد" message in Bale for each tool.
 

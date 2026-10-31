@@ -1,5 +1,5 @@
 #!/bin/sh
-# Office Presence ping (macOS / Linux). Reporter version 1.
+# Office Presence ping (macOS / Linux). Reporter version 2.
 #
 # Usage: ping.sh <tool> <event>
 #   tool:  claude | cursor | codex | hermes
@@ -8,7 +8,9 @@
 # Privacy contract: the request body is exactly {credential, tool, event, v}.
 # This script never reads the hook payload on stdin, so prompts and code never leave the machine.
 #
-# Hook mode (event != test): sends in the background, prints a no-op JSON object, exits 0.
+# Hook mode (event != test): sends in the foreground (at most ~2 s), prints a no-op JSON object, exits 0.
+# Foreground on purpose: hook runners may kill the process tree when the hook exits, which would
+# kill a backgrounded curl before the request leaves the machine.
 # Test mode (event == test): sends in the foreground and prints "ok" or "failed: <reason>".
 
 DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
@@ -30,7 +32,7 @@ if [ -z "$CRED" ] || [ -z "$URL" ]; then
   noop
 fi
 
-BODY=$(printf '{"credential":"%s","tool":"%s","event":"%s","v":"1"}' "$CRED" "$TOOL" "$EVENT")
+BODY=$(printf '{"credential":"%s","tool":"%s","event":"%s","v":"2"}' "$CRED" "$TOOL" "$EVENT")
 
 if [ "$EVENT" = test ]; then
   CODE=$(curl -s -m 5 -o /dev/null -w '%{http_code}' -X POST -H 'Content-Type: application/json' --data "$BODY" "$URL/api/events" 2>/dev/null)
@@ -38,5 +40,5 @@ if [ "$EVENT" = test ]; then
   exit 0
 fi
 
-(curl -s -m 3 -o /dev/null -X POST -H 'Content-Type: application/json' --data "$BODY" "$URL/api/events" </dev/null >/dev/null 2>&1 &) >/dev/null 2>&1
+curl -s --connect-timeout 1 -m 2 -o /dev/null -X POST -H 'Content-Type: application/json' --data "$BODY" "$URL/api/events" </dev/null >/dev/null 2>&1
 noop

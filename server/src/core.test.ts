@@ -74,6 +74,15 @@ test('presence: working → busy → stop → idle → away', () => {
   now = new Date(now.getTime() + 6 * 60_000);
   assert.equal(presence.snapshot().seats[0].state, 'idle');
 
+  // An open turn (no stop) keeps the avatar working past the 5-minute window, up to 10 minutes.
+  presence.record('1', 'claude', 'prompt');
+  now = new Date(now.getTime() + 8 * 60_000);
+  s = presence.snapshot().seats[0];
+  assert.equal(s.state, 'working');
+  assert.equal(s.busy, true);
+  now = new Date(now.getTime() + 3 * 60_000);
+  assert.equal(presence.snapshot().seats[0].state, 'idle');
+
   // Persistence is throttled, but a different tool is always written through.
   presence.record('1', 'codex', 'tool');
   assert.equal(store.getUser('1')!.last_tool, 'codex');
