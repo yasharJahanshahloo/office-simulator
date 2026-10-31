@@ -1,0 +1,8 @@
+{
+  "name": "office-presence",
+  "version": "1.0.0",
+  "description": "Shows you as working in the office presence view while you use Claude (Cowork, chat, Code). Sends only {credential, tool, event} via the local ping script; never prompts or files.",
+  "author": {
+    "name": "Office Presence"
+  }
+}

@@ -22,7 +22,7 @@ export interface BotDeps {
 const AGENT_PROMPT = 'Read install.md in this folder and follow it.';
 
 const TOOL_NAMES: Record<Tool, string> = {
-  claude: 'Claude Code',
+  claude: 'Claude',
   cursor: 'Cursor',
   codex: 'Codex',
   hermes: 'Hermes',
@@ -32,7 +32,7 @@ const T = {
   greeting:
     'سلام! 👋\n' +
     'این بازوی «دفتر هوش مصنوعی» است: نمای سه‌بعدی دفتر که هر وقت با یک ایجنت هوش مصنوعی ' +
-    '(Claude Code، Cursor، Codex یا Hermes) کار کنید، آواتار شما را پشت میزتان مشغول کار نشان می‌دهد.\n\n' +
+    '(Claude — شامل Claude Code، Cowork و چت دسکتاپ — Cursor، Codex یا Hermes) کار کنید، آواتار شما را پشت میزتان مشغول کار نشان می‌دهد.\n\n' +
     'برای شروع، دکمهٔ زیر را بزنید.',
   startButton: '🚀 شروع',
   mapCaption:

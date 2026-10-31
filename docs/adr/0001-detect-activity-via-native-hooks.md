@@ -20,3 +20,12 @@ usage/admin APIs are aggregated and hours-to-days delayed — unusable for live 
 - Turn-end events are unreliable (interrupts, Codex app background threads) → server-side timeout is mandatory.
 - Codex and Hermes require one-time hook trust/consent; the installer should pre-approve where possible.
 - Hook configs differ per tool/OS; the reporter must handle mac/Linux/Windows.
+
+## Addendum (2026-10-31): Claude Desktop, Cowork and chat
+- Cowork and Desktop chat ignore `~/.claude/settings.json` hooks; they run hooks only from plugins, on the
+  device (not in Cowork's VM). See docs/research/claude-desktop-cowork.md.
+- The setup zip carries a Claude plugin template whose hooks call the same ping script. The installing agent
+  fills in `PING`, tries to install it into Claude Desktop itself, and otherwise hands the employee the
+  Customize → Plugins → Upload steps (per-user, not org-wide).
+- All Claude surfaces report as one tool, `claude`, shown as "Claude": the account-level plugin also fires in
+  Claude Code sessions, so surfaces can't be told apart without reading the hook payload. Desktop chat counts as AI use.

@@ -1,0 +1,7 @@
+{
+  "hooks": {
+    "UserPromptSubmit": [{ "hooks": [{ "type": "command", "command": "{{PING}} claude prompt", "async": true }] }],
+    "PostToolUse": [{ "matcher": "*", "hooks": [{ "type": "command", "command": "{{PING}} claude tool", "async": true }] }],
+    "Stop": [{ "hooks": [{ "type": "command", "command": "{{PING}} claude stop", "async": true }] }]
+  }
+}

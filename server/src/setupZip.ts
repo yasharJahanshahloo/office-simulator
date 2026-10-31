@@ -8,7 +8,8 @@ const FILE = { os: 3, attrs: 0o100644 << 16 };
 
 /**
  * The setup zip a registered employee receives: the reporter scripts, install.md for their
- * AI agent, the server URL, and their personal credential. Files are read fresh on every
+ * AI agent, the server URL, their personal credential, and the Claude plugin template
+ * (Cowork and Desktop chat only run hooks from plugins). Files are read fresh on every
  * call, so a zip always carries the latest reporter version.
  */
 export function buildSetupZip(opts: { reporterDir: string; serverUrl: string; credential: string }): Uint8Array {
@@ -20,5 +21,7 @@ export function buildSetupZip(opts: { reporterDir: string; serverUrl: string; cr
     [root + 'ping.ps1']: [strToU8(read('ping.ps1')), FILE],
     [root + 'server_url']: [strToU8(opts.serverUrl + '\n'), FILE],
     [root + 'credential']: [strToU8(opts.credential + '\n'), FILE],
+    [root + 'claude-plugin/.claude-plugin/plugin.json']: [strToU8(read('claude-plugin/.claude-plugin/plugin.json')), FILE],
+    [root + 'claude-plugin/hooks/hooks.json']: [strToU8(read('claude-plugin/hooks/hooks.json')), FILE],
   });
 }

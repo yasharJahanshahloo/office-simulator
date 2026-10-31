@@ -14,14 +14,14 @@ Work through them in order. Each step ends on a **done when** line; move on only
 
 ### 1. Check the bundle
 
-This folder holds `install.md`, `ping.sh`, `ping.ps1`, `credential` and `server_url`.
+This folder holds `install.md`, `ping.sh`, `ping.ps1`, `credential`, `server_url`, and the `claude-plugin/` template folder.
 
-**Done when:** all five files exist next to this file.
+**Done when:** all of them exist next to this file.
 
 ### 2. Install the files
 
 1. Pick the install directory: `~/.office-presence` on macOS/Linux, `%USERPROFILE%\.office-presence` on Windows.
-2. Create it and copy all five files into it, overwriting older copies. A reinstall with a fresh bundle replaces the old credential.
+2. Create it and copy everything from this folder into it, overwriting older copies. A reinstall with a fresh bundle replaces the old credential.
 3. On macOS/Linux, run `chmod 700` on the directory, `chmod 600` on `credential`, and `chmod +x` on `ping.sh`.
 4. Build `PING`, the absolute command prefix every hook uses. Expand `~` and `%USERPROFILE%` to real paths.
    - macOS/Linux: `/home/alice/.office-presence/ping.sh`
@@ -54,6 +54,8 @@ A tool counts as installed when its config directory exists or its command is on
 
 On Windows, `~` means `%USERPROFILE%`.
 
+Also check for the **Claude Desktop app** (macOS: `/Applications/Claude.app`; Windows: an installed app named Claude, e.g. under `%LOCALAPPDATA%\AnthropicClaude`). Its Cowork mode and chat ignore the Claude Code hooks; they run hooks only from a plugin, which step 5b builds.
+
 **Done when:** you have the list of installed tools, with the config directory you will edit for each. Tools that are not installed get no config files and no test pings.
 
 ### 5. Add the hooks
@@ -67,9 +69,22 @@ For each installed tool, add the entries from its section under [Hook reference]
 
 **Done when:** each edited file parses (JSON, TOML or YAML), and each installed tool has exactly one office-presence entry for every event in its table.
 
+### 5b. Build and install the Claude Desktop plugin
+
+Skip this step when Claude Desktop is not installed.
+
+1. In `<install dir>/claude-plugin/hooks/hooks.json`, replace every `{{PING}}` with the exact `PING` string. Edit it as JSON (parse, set the three `command` values, serialize), so the quotes inside a Windows `PING` are escaped.
+2. Zip the **contents** of `<install dir>/claude-plugin/` into `<install dir>/office-presence-claude-plugin.zip`, so the archive root holds `.claude-plugin/plugin.json` and `hooks/hooks.json`.
+3. **Install it yourself first.** Use any route on this machine that adds a plugin to the employee's Claude Desktop (Cowork and chat), e.g. an install command of the Claude Desktop app or of the `claude` CLI that targets the Desktop app or the employee's Claude account. A route that installs only into the Claude Code CLI does not count: step 5 already covers Claude Code.
+4. If no route works, the employee uploads it by hand: in Claude Desktop, **Customize → Plugins → Add → Upload plugin**, then pick `office-presence-claude-plugin.zip`.
+
+Hooks in Desktop chat need Claude Desktop 1.52386.0 or later; Cowork runs them in any version with plugins.
+
+**Done when:** the zip exists, and either you installed the plugin (say how) or the employee has the upload instructions with the zip's full path.
+
 ### 6. Test every tool
 
-For each tool you configured in step 5, and only those, run `PING <tool> test`.
+For each tool you configured in step 5, and only those, run `PING <tool> test`. The Claude Desktop plugin uses the `claude` ping, so it needs no separate test.
 
 **Done when:** each one prints `ok`. The employee also receives a "✅ وصل شد" message in Bale for each tool.
 
@@ -83,6 +98,7 @@ Tell the employee, in a few lines:
   - **Codex:** open `/hooks` in Codex and trust the three office-presence hooks. Codex skips untrusted hooks.
   - **Hermes:** approve each office-presence hook when the next `hermes chat` asks. Approval is a one-time step per hook.
   - **Claude Code, Cursor:** hooks load in new sessions; restart open windows.
+  - **Claude Desktop:** if you could not install the plugin, the upload steps from step 5b with the zip's full path. Then quit and reopen Claude Desktop.
 
 ## Hook reference
 
@@ -179,6 +195,7 @@ hooks:
 When the employee asks to remove Office Presence:
 
 1. In every config file listed in the hook reference, delete each office-presence entry, i.e. every hook whose command contains `.office-presence/ping` or `.office-presence\ping`. Drop any event list or matcher group this leaves empty. Leave everything else as it was.
-2. Delete the install directory.
+2. Remove the office-presence plugin from Claude Desktop (Customize → Plugins), or tell the employee to.
+3. Delete the install directory.
 
-**Done when:** no config file mentions `.office-presence`, and the install directory is gone.
+**Done when:** no config file mentions `.office-presence`, the plugin is removed or the employee knows to remove it, and the install directory is gone.

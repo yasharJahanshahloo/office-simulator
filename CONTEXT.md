@@ -11,7 +11,8 @@ Purpose: make AI usage visible and social, to increase AI adoption across the co
 - **Desk seat** — one of the 24 seats in zone `desk`; the only seats assigned to employees.
 - **Employee** — a Bale user registered to exactly one desk seat. Remote employees get a seat too.
 - **Seat assignment** — config mapping `employee → desk seat id`. Mock data until real roster is provided.
-- **AI agent** — one of: Cursor, Claude Code, Codex (OpenAI), Hermes Agent (Nous Research).
+- **AI agent** — one of: Cursor, Claude (Claude Code, Code tab, Cowork, Desktop chat — one tool), Codex (OpenAI), Hermes Agent (Nous Research).
+- **Claude plugin** — per-user plugin built by the installing agent; the only way Cowork and Desktop chat run hooks.
 - **Activity event** — a heartbeat emitted by an AI agent's native hook: `{employee, tool, event, timestamp}`. Nothing else.
 - **Reporter** — the tiny per-OS ping script plus hook entries on an employee machine; installed by the employee's own AI agent following `install.md`.
 - **Credential** — the employee's Bale user id, encrypted by the server, built into their setup zip; identifies the employee on every activity event.
