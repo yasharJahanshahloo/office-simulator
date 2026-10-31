@@ -1,7 +1,32 @@
+import https from 'node:https';
+
 /**
  * Minimal Bale bot API client. Bale is Telegram Bot API–compatible:
  * https://tapi.bale.ai/bot<token>/<method>.
+ *
+ * Every call opens its own connection (no keep-alive): a request reusing the socket of a
+ * finished getUpdates long poll was observed to hang forever. Every call has a hard timeout.
  */
+
+const CALL_TIMEOUT_MS = 30_000;
+
+function post(url: string, body: Buffer, contentType: string, timeoutMs: number): Promise<{ status: number; text: string }> {
+  return new Promise((resolve, reject) => {
+    const req = https.request(
+      url,
+      { method: 'POST', agent: false, headers: { 'Content-Type': contentType, 'Content-Length': body.length } },
+      (res) => {
+        const chunks: Buffer[] = [];
+        res.on('data', (c: Buffer) => chunks.push(c));
+        res.on('end', () => resolve({ status: res.statusCode ?? 0, text: Buffer.concat(chunks).toString('utf8') }));
+        res.on('error', reject);
+      },
+    );
+    req.setTimeout(timeoutMs, () => req.destroy(new Error(`timeout after ${timeoutMs} ms`)));
+    req.on('error', reject);
+    req.end(body);
+  });
+}
 
 export interface BaleUser {
   id: number;
@@ -47,20 +72,20 @@ export class BaleApi {
     this.base = `${apiBase}/bot${token}`;
   }
 
-  private async parse<T>(method: string, res: Response): Promise<T> {
-    const body = (await res.json().catch(() => ({}))) as { ok?: boolean; result?: T; description?: string };
-    if (!body.ok) throw new Error(`bale ${method} failed: ${res.status} ${body.description ?? ''}`.trim());
-    return body.result as T;
+  private async send<T>(method: string, body: Buffer, contentType: string, timeoutMs = CALL_TIMEOUT_MS): Promise<T> {
+    const res = await post(`${this.base}/${method}`, body, contentType, timeoutMs);
+    let parsed: { ok?: boolean; result?: T; description?: string } = {};
+    try {
+      parsed = JSON.parse(res.text);
+    } catch {
+      /* non-JSON error page */
+    }
+    if (!parsed.ok) throw new Error(`bale ${method} failed: ${res.status} ${parsed.description ?? ''}`.trim());
+    return parsed.result as T;
   }
 
-  async call<T>(method: string, params: Record<string, unknown> = {}, signal?: AbortSignal): Promise<T> {
-    const res = await fetch(`${this.base}/${method}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(params),
-      signal,
-    });
-    return this.parse<T>(method, res);
+  call<T>(method: string, params: Record<string, unknown> = {}, timeoutMs = CALL_TIMEOUT_MS): Promise<T> {
+    return this.send<T>(method, Buffer.from(JSON.stringify(params)), 'application/json', timeoutMs);
   }
 
   private async upload<T>(method: string, field: string, file: { data: Uint8Array; name: string; type: string }, params: Record<string, unknown>): Promise<T> {
@@ -70,12 +95,14 @@ export class BaleApi {
       form.append(k, typeof v === 'string' || typeof v === 'number' ? String(v) : JSON.stringify(v));
     }
     form.append(field, new Blob([file.data], { type: file.type }), file.name);
-    const res = await fetch(`${this.base}/${method}`, { method: 'POST', body: form });
-    return this.parse<T>(method, res);
+    // Let the platform encode multipart (boundary included), then send it on a fresh connection.
+    const encoded = new Response(form);
+    const body = Buffer.from(await encoded.arrayBuffer());
+    return this.send<T>(method, body, encoded.headers.get('content-type')!);
   }
 
-  getUpdates(offset: number, timeoutSec: number, signal?: AbortSignal): Promise<BaleUpdate[]> {
-    return this.call<BaleUpdate[]>('getUpdates', { offset, timeout: timeoutSec }, signal);
+  getUpdates(offset: number, timeoutSec: number): Promise<BaleUpdate[]> {
+    return this.call<BaleUpdate[]>('getUpdates', { offset, timeout: timeoutSec }, (timeoutSec + 15) * 1000);
   }
 
   sendMessage(chatId: number | string, text: string, replyMarkup?: InlineKeyboard): Promise<BaleMessage> {

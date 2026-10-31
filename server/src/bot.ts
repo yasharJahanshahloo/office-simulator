@@ -99,7 +99,7 @@ export class Bot {
     while (this.running) {
       const started = Date.now();
       try {
-        const updates = await this.d.api.getUpdates(this.offset, 25, AbortSignal.timeout(40_000));
+        const updates = await this.d.api.getUpdates(this.offset, 25);
         for (const u of updates) {
           this.offset = Math.max(this.offset, u.update_id + 1);
           const kind = Object.keys(u).filter((k) => k !== 'update_id').join(',');
