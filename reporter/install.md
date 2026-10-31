@@ -84,7 +84,7 @@ Hooks in Desktop chat need Claude Desktop 1.52386.0 or later; Cowork runs them i
 
 ### 6. Test every tool
 
-For each tool you configured in step 5, and only those, run `PING <tool> test`. The Claude Desktop plugin uses the `claude` ping, so it needs no separate test.
+For each tool you configured in step 5, and only those, run `PING <tool> test`. Check with `test` only: running a hook command such as `PING claude prompt` by hand reports real AI use and shows the employee as working. The Claude Desktop plugin uses the `claude` ping, so it needs no separate test.
 
 **Done when:** each one prints `ok`. The employee also receives a "✅ وصل شد" message in Bale for each tool.
 
