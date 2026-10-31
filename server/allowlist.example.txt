@@ -1,0 +1,5 @@
+# Bale user ids allowed to register, one per line. `#` starts a comment.
+# Admins (ADMIN_IDS) are always allowed. Edits take effect immediately, no restart.
+# Mock entries until the real list arrives:
+100000001  # mock
+100000002  # mock

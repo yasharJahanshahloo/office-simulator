@@ -1,0 +1,16 @@
+# systemd user unit. Installed by deploy/deploy.sh into ~/.config/systemd/user/.
+[Unit]
+Description=Office Presence (web + event API + Bale bot)
+After=network-online.target
+
+[Service]
+WorkingDirectory=%h/office-simulator/server
+EnvironmentFile=%h/office-simulator/server/.env
+Environment=PATH=%h/.n/bin:/usr/local/bin:/usr/bin:/bin
+Environment=NODE_ENV=production
+ExecStart=%h/.n/bin/node --no-warnings=ExperimentalWarning --import tsx src/main.ts
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target
