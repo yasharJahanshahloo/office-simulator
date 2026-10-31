@@ -1,0 +1,255 @@
+:root {
+  font-family: Vazirmatn, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-size: 13px;
+  color: #222;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: #e8e6e2;
+}
+
+#app {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+}
+
+#app > canvas {
+  display: block;
+}
+
+.label-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.panel {
+  position: absolute;
+  display: flex;
+  gap: 6px;
+  padding: 8px;
+  background: rgba(255, 255, 255, 0.88);
+  border-radius: 8px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.12);
+}
+
+.panel button {
+  font: inherit;
+  padding: 4px 10px;
+  border: 1px solid #c9c7c2;
+  border-radius: 5px;
+  background: #fff;
+  cursor: pointer;
+}
+
+.panel button:hover {
+  background: #f1f0ed;
+}
+
+.panel button.active {
+  background: #2d2d31;
+  border-color: #2d2d31;
+  color: #fff;
+}
+
+.view-toggle {
+  bottom: 12px;
+  left: 12px;
+  opacity: 0.75;
+  transition: opacity 0.4s;
+}
+
+.view-toggle:hover {
+  opacity: 1;
+}
+
+/* TV mode: hide interactive chrome while nobody is touching the screen. */
+#app.tv .view-toggle {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.debug-panel {
+  top: 50%;
+  transform: translateY(-50%);
+  right: 12px;
+  flex-direction: column;
+  width: 190px;
+  border: 1px dashed #d08a2a;
+}
+
+.debug-panel .panel-title {
+  font-weight: 600;
+}
+
+.debug-panel .muted,
+.debug-panel .stats {
+  color: #777;
+  font-weight: 400;
+}
+
+.debug-panel .stats {
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.seat-label {
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: 600;
+  color: #fff;
+  background: rgba(30, 30, 35, 0.75);
+  white-space: nowrap;
+}
+
+.seat-label.zone-desk {
+  background: rgba(20, 110, 170, 0.85);
+}
+
+.seat-label.zone-lounge {
+  background: rgba(40, 140, 100, 0.85);
+}
+
+/* ------------------------------------------------------------------ HUD */
+
+.hud {
+  position: absolute;
+  top: clamp(10px, 1.6vw, 28px);
+  padding: clamp(10px, 1.2vw, 22px) clamp(14px, 1.6vw, 28px);
+  color: #1d1d22;
+  background: rgba(255, 255, 255, 0.82);
+  border-radius: clamp(10px, 1vw, 18px);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.1);
+  backdrop-filter: blur(6px);
+  pointer-events: none;
+  line-height: 1.1;
+}
+
+.hud-stats {
+  left: clamp(10px, 1.6vw, 28px);
+}
+
+.hud-headline {
+  display: flex;
+  align-items: center;
+  gap: 0.35em;
+}
+
+.hud-n {
+  font-size: clamp(44px, 4.4vw, 92px);
+  font-weight: 800;
+  line-height: 0.9;
+  color: #1b8a5a;
+  font-variant-numeric: tabular-nums;
+}
+
+.hud-of {
+  font-size: clamp(18px, 1.6vw, 34px);
+  font-weight: 800;
+  color: #55555c;
+}
+
+.hud-caption {
+  font-size: clamp(15px, 1.3vw, 27px);
+  font-weight: 700;
+}
+
+.hud-tools {
+  display: grid;
+  grid-template-columns: auto auto;
+  gap: clamp(4px, 0.4vw, 8px) clamp(12px, 1.2vw, 24px);
+  margin-top: clamp(8px, 0.7vw, 14px);
+}
+
+.hud-tool {
+  display: flex;
+  align-items: center;
+  gap: 0.4em;
+  font-size: clamp(13px, 0.95vw, 20px);
+  font-weight: 600;
+}
+
+.hud-tool.zero {
+  opacity: 0.4;
+}
+
+.tool-mark {
+  display: inline-grid;
+  place-items: center;
+  width: 1.75em;
+  height: 1.75em;
+  border-radius: 0.4em;
+  color: #fff;
+  font-size: 0.85em;
+  font-weight: 800;
+}
+
+.tool-name {
+  flex: 1;
+}
+
+.tool-count {
+  min-width: 1.2em;
+  text-align: right;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.hud-clock {
+  right: clamp(10px, 1.6vw, 28px);
+  text-align: right;
+}
+
+.clock-time {
+  font-size: clamp(36px, 3.6vw, 76px);
+  line-height: 0.95;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.clock-date {
+  font-size: clamp(13px, 1.05vw, 22px);
+  font-weight: 600;
+  color: #55555c;
+  margin-top: 0.2em;
+}
+
+.clock-fa {
+  font-size: clamp(14px, 1.15vw, 24px);
+  font-weight: 600;
+  margin-top: 0.2em;
+  text-align: left;
+}
+
+.offline-badge {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #fff;
+  background: rgba(190, 60, 50, 0.85);
+  pointer-events: none;
+}
+
+.offline-badge[hidden] {
+  display: none;
+}
+
+@media (max-width: 600px) {
+  .debug-panel {
+    top: auto;
+    transform: none;
+    bottom: 48px;
+    right: 12px;
+    width: 160px;
+  }
+}
