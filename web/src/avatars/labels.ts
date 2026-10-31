@@ -1,6 +1,6 @@
 /**
- * Canvas-textured bits of the presence layer: the desk name plaque, the tool
- * icon billboards and the "agent busy" spinner.
+ * Canvas-textured bits of the presence layer: the desk name plaque and the tool
+ * icon billboards.
  */
 import * as THREE from 'three';
 import { FONT_STACK, isRtl, whenFontReady } from '../fonts';
@@ -146,39 +146,4 @@ export function toolIconMaterial(tool: Tool): THREE.SpriteMaterial {
     }
   }
   return toolMaterials.get(tool)!;
-}
-
-/* -------------------------------------------------------------- spinner */
-
-let spinnerMat: THREE.SpriteMaterial | undefined;
-
-/** Shared spinner material; rotate it via `spinnerMaterial().rotation` once per frame. */
-export function spinnerMaterial(): THREE.SpriteMaterial {
-  if (!spinnerMat) {
-    const size = 128;
-    const canvas = document.createElement('canvas');
-    canvas.width = canvas.height = size;
-    const ctx = canvas.getContext('2d')!;
-    const c = size / 2;
-    ctx.lineCap = 'round';
-    // white halo so it reads on any background
-    ctx.strokeStyle = 'rgba(255,255,255,0.95)';
-    ctx.lineWidth = 26;
-    ctx.beginPath();
-    ctx.arc(c, c, 42, 0, Math.PI * 1.5);
-    ctx.stroke();
-    ctx.strokeStyle = '#ff9f1c';
-    ctx.lineWidth = 14;
-    ctx.beginPath();
-    ctx.arc(c, c, 42, 0, Math.PI * 1.5);
-    ctx.stroke();
-    ctx.fillStyle = '#ff9f1c';
-    ctx.beginPath();
-    ctx.arc(c, c, 13, 0, Math.PI * 2);
-    ctx.fill();
-    const tex = new THREE.CanvasTexture(canvas);
-    tex.colorSpace = THREE.SRGBColorSpace;
-    spinnerMat = new THREE.SpriteMaterial({ map: tex, toneMapped: false });
-  }
-  return spinnerMat;
 }

@@ -1,4 +1,4 @@
-# Office Presence ping (Windows). Reporter version 2.
+# Office Presence ping (Windows). Reporter version 3.
 #
 # Usage: powershell -NoProfile -ExecutionPolicy Bypass -File ping.ps1 <tool> <event>
 #   tool:  claude | cursor | codex | hermes
@@ -7,7 +7,9 @@
 # Privacy contract: the request body is exactly {credential, tool, event, v}.
 # This script never reads the hook payload on stdin, so prompts and code never leave the machine.
 #
-# Hook mode (event != test): sends with a 2 s timeout, prints a no-op JSON object, exits 0.
+# Hook mode (event != test): returns at once with a no-op JSON object; the AI tool never waits on the
+# network. The request runs in a separate hidden PowerShell process. After a failed send, sends are
+# skipped for 60 s (.offline marker), so being off the office network costs nothing.
 # Test mode (event == test): prints "ok" or "failed: <reason>".
 param([string]$Tool, [string]$Kind)
 $ErrorActionPreference = 'SilentlyContinue'
@@ -28,7 +30,7 @@ if (-not $cred -or -not $url) {
   Noop
 }
 
-$body = @{ credential = $cred; tool = $Tool; event = $Kind; v = '2' } | ConvertTo-Json -Compress
+$body = @{ credential = $cred; tool = $Tool; event = $Kind; v = '3' } | ConvertTo-Json -Compress
 
 if ($Kind -eq 'test') {
   try {
@@ -40,5 +42,12 @@ if ($Kind -eq 'test') {
   exit 0
 }
 
-try { Invoke-RestMethod -Method Post -Uri "$url/api/events" -ContentType 'application/json' -Body $body -TimeoutSec 2 | Out-Null } catch {}
+$off = Join-Path $dir '.offline'
+if ((Test-Path -LiteralPath $off) -and ((Get-Item -LiteralPath $off).LastWriteTime -gt (Get-Date).AddSeconds(-60))) { Noop }
+
+# The body holds only base64url, tool and event names: no single quotes to escape. The path might.
+$offQ = $off.Replace("'", "''")
+$send = "try { Invoke-RestMethod -Method Post -Uri '$url/api/events' -ContentType 'application/json' -Body '$body' -TimeoutSec 3 | Out-Null; Remove-Item -LiteralPath '$offQ' -ErrorAction SilentlyContinue } catch { New-Item -ItemType File -Force -Path '$offQ' | Out-Null }"
+$enc = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($send))
+Start-Process -FilePath 'powershell' -ArgumentList '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', $enc -WindowStyle Hidden
 Noop

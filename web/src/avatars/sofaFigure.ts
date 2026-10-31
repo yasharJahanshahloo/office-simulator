@@ -221,11 +221,6 @@ export class SofaFigure {
     return this.localOf(this.head, out).add(new THREE.Vector3(0, 0.4, 0));
   }
 
-  /** Where the busy spinner floats: above the phone, a little in front of the face. */
-  spinnerPoint(out: THREE.Vector3): THREE.Vector3 {
-    return this.localOf(this.phone, out).add(new THREE.Vector3(0, 0.42, 0.15));
-  }
-
   /** `rate` in thumb taps per second; 0 = still. */
   animate(time: number, rate: number): void {
     const p = POSES[this.pose];

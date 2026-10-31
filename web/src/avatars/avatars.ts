@@ -1,15 +1,15 @@
 /**
- * Presence layer: turns a PresenceSnapshot into avatars, name tags, tool icons,
- * busy spinners and lit monitors on the desk seats.
+ * Presence layer: turns a PresenceSnapshot into avatars, name tags, tool icons and
+ * lit monitors on the desk seats.
  *
- *   working → seated figure typing, monitor on, tool icon above; busy = faster typing + spinner
+ *   working → seated figure typing, monitor on, tool icon above; busy = much faster typing
  *   idle    → seated figure leaning back, monitor off
  *   away    → empty chair, monitor off, name tag stays
  *   absent from the snapshot (unregistered) → empty desk, no name tag
  *
- * Plus the owner's sofa seat (OWNER_SEAT_ID): no desk or monitor; working = sitting with a
- * phone (spinner above the phone when busy), idle = lying along the sofa, and the name
- * plaque lies on the floor in front of the sofa.
+ * Plus the owner's sofa seat (OWNER_SEAT_ID): no desk or monitor; working = sitting in the
+ * middle of the sofa with a phone (thumbs faster when busy), idle = lying along the sofa, and
+ * the name plaque lies on the floor in front of the sofa.
  */
 import * as THREE from 'three';
 import type { OfficeScene } from '../office/buildOffice';
@@ -19,14 +19,13 @@ import type { DeskItem, OfficeLayout, Seat, SofaItem } from '../office/types';
 import type { PresenceSnapshot, SeatPresence } from '../presence/contract';
 import { OWNER_SEAT_ID } from '../presence/owner';
 import { Figure, type FigureLook, type FigurePose, lookFor, shirtCss } from './figure';
-import { NameTag, PLAQUE_D, PLAQUE_W, spinnerMaterial, toolIconMaterial } from './labels';
+import { NameTag, PLAQUE_D, PLAQUE_W, toolIconMaterial } from './labels';
 import { SofaFigure } from './sofaFigure';
 
 const TYPING_RATE = 2.2; // taps per second per hand
 const BUSY_TYPING_RATE = 6;
 const ICON_SIZE = 0.34;
 const ICON_Y = 1.55;
-const SPINNER_SIZE = 0.25;
 
 /**
  * Lit-screen glow: monitors face sideways (east/west), so from the default camera and
@@ -66,7 +65,7 @@ interface Avatar {
 
 interface SlotBase {
   seat: Seat;
-  /** Frame the figure, tool icon (and for the sofa, the spinner) live in. */
+  /** Frame the figure and tool icon live in. */
   anchor: THREE.Group;
   /** Plaque position in world space (y = surface it lies on). */
   tagPosition: THREE.Vector3;
@@ -76,14 +75,11 @@ interface SlotBase {
   figure?: Avatar;
   tag?: NameTag;
   icon?: THREE.Sprite;
-  spinner?: THREE.Sprite;
 }
 
 interface DeskSlot extends SlotBase {
   kind: 'desk';
   desk: DeskItem;
-  /** World space. */
-  spinnerPosition: THREE.Vector3;
   glow: THREE.Mesh;
 }
 
@@ -120,12 +116,8 @@ export class AvatarLayer {
       anchor.rotation.y = yawFromFacing(seat.facing);
       this.root.add(anchor);
 
-      // Spinner floats just over the monitor, nudged towards the camera side so it
-      // never hides the name tag on the desk behind it.
       const screenPos = new THREE.Vector3();
       office.monitors.get(desk.id)?.getWorldPosition(screenPos);
-      const r = cameraSideAxis(desk);
-      const spinnerPosition = screenPos.clone().add(new THREE.Vector3(r.x * 0.26, 0.3, r.z * 0.26));
 
       const glow = new THREE.Mesh(glowGeometry, glowMaterial);
       const f = desk.facing ?? { x: 0, z: 1 };
@@ -142,7 +134,6 @@ export class AvatarLayer {
         anchor,
         tagPosition: plaquePosition(desk),
         iconBase: new THREE.Vector3(0, ICON_Y, 0.05),
-        spinnerPosition,
         glow,
       });
     }
@@ -170,17 +161,17 @@ export class AvatarLayer {
     anchor.rotation.y = yawFromFacing(facing);
     anchor.updateMatrix();
     this.root.add(anchor);
-    const seatLocal = new THREE.Vector3(seat.position.x, 0, seat.position.z).applyMatrix4(anchor.matrix.clone().invert());
 
     // plaque flat on the floor in front of the sofa, level with the seat, clear of the
     // sitting figure's feet (which reach ~0.23 m past the front edge)
     const extentF = Math.abs(facing.x) * PLAQUE_W + Math.abs(facing.z) * PLAQUE_D;
-    const tagPosition = new THREE.Vector3(seatLocal.x, 0, sofa.depth / 2 + 0.3 + extentF / 2).applyMatrix4(
+    // The owner sits in the middle of the sofa (sofa frame x = 0), plaque in front of them.
+    const tagPosition = new THREE.Vector3(0, 0, sofa.depth / 2 + 0.3 + extentF / 2).applyMatrix4(
       anchor.matrix,
     );
     tagPosition.y = 0.006;
 
-    return { kind: 'sofa', seat, sofa, seatX: seatLocal.x, anchor, tagPosition, iconBase: new THREE.Vector3() };
+    return { kind: 'sofa', seat, sofa, seatX: 0, anchor, tagPosition, iconBase: new THREE.Vector3() };
   }
 
   /** Make the scene match `snapshot`. Seats missing from it become empty, untagged desks. */
@@ -198,7 +189,6 @@ export class AvatarLayer {
 
   /** Call every frame with elapsed seconds. */
   update(time: number): void {
-    spinnerMaterial().rotation = -time * 5;
     for (const slot of this.slots.values()) {
       const p = slot.presence;
       if (!p || !slot.figure || p.state === 'away') continue;
@@ -266,21 +256,6 @@ export class AvatarLayer {
     } else if (slot.icon) {
       slot.icon.visible = false;
     }
-
-    // busy spinner above the monitor (desk) or above the phone (sofa)
-    const busy = state === 'working' && p!.busy;
-    if (busy && !slot.spinner) {
-      slot.spinner = new THREE.Sprite(spinnerMaterial());
-      slot.spinner.scale.setScalar(SPINNER_SIZE);
-      if (slot.kind === 'desk') {
-        slot.spinner.position.copy(slot.spinnerPosition);
-        this.root.add(slot.spinner);
-      } else {
-        slot.anchor.add(slot.spinner);
-      }
-    }
-    if (slot.spinner && slot.figure instanceof SofaFigure) slot.figure.spinnerPoint(slot.spinner.position);
-    if (slot.spinner) slot.spinner.visible = busy;
   }
 }
 
