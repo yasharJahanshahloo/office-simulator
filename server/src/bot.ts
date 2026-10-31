@@ -102,6 +102,9 @@ export class Bot {
         const updates = await this.d.api.getUpdates(this.offset, 25, AbortSignal.timeout(40_000));
         for (const u of updates) {
           this.offset = Math.max(this.offset, u.update_id + 1);
+          const kind = Object.keys(u).filter((k) => k !== 'update_id').join(',');
+          const from = u.message?.from?.id ?? u.callback_query?.from.id;
+          console.log(`[bot] update ${u.update_id}: ${kind} from ${from ?? '?'}`);
           try {
             if (u.message) await this.onMessage(u.message);
             else if (u.callback_query) await this.onCallback(u.callback_query);
