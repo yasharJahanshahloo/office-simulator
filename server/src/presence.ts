@@ -19,7 +19,13 @@ function userKey(userId: string): string {
 interface Live {
   busy: boolean;
   lastEventMs: number;
+  lastTool: Tool;
+  /** When last_event_at was last written to the store. */
+  persistedMs: number;
 }
+
+/** Activity is persisted at most this often per user (the dev server's disk is slow). */
+const PERSIST_INTERVAL_MS = 30_000;
 
 /**
  * Turns activity events into avatar states and pushes snapshots to subscribers.
@@ -37,10 +43,12 @@ export class Presence {
 
   record(userId: string, tool: Tool, kind: ActivityKind): void {
     const at = this.now();
-    this.store.recordEvent(userId, tool, at);
+    const ms = at.getTime();
     const prev = this.live.get(userId);
+    const persist = !prev || prev.lastTool !== tool || ms - prev.persistedMs >= PERSIST_INTERVAL_MS;
+    if (persist) this.store.recordEvent(userId, tool, at);
     const busy = kind === 'prompt' || kind === 'tool' ? true : kind === 'stop' ? false : (prev?.busy ?? false);
-    this.live.set(userId, { busy, lastEventMs: at.getTime() });
+    this.live.set(userId, { busy, lastEventMs: ms, lastTool: tool, persistedMs: persist ? ms : prev!.persistedMs });
     this.publish();
   }
 
@@ -52,10 +60,11 @@ export class Presence {
   }
 
   private seatOf(u: UserRow, now: Date, today: string): SeatPresence {
-    const last = u.last_event_at ? new Date(u.last_event_at) : null;
+    const live = this.live.get(u.user_id);
+    const last = live ? new Date(live.lastEventMs) : u.last_event_at ? new Date(u.last_event_at) : null;
+    const tool = (live?.lastTool ?? u.last_tool) as Tool | null;
     const activeToday = last !== null && tehranDay(last) === today;
     const working = last !== null && now.getTime() - last.getTime() < WORKING_WINDOW_MS;
-    const live = this.live.get(u.user_id);
     const busy = working && !!live?.busy && now.getTime() - live.lastEventMs < BUSY_TIMEOUT_MS;
     return {
       seatId: seatIdOf(u.seat_label!),
@@ -64,7 +73,7 @@ export class Presence {
       userKey: userKey(u.user_id),
       state: working ? 'working' : activeToday ? 'idle' : 'away',
       busy,
-      tool: activeToday ? (u.last_tool as Tool | null) : null,
+      tool: activeToday ? tool : null,
     };
   }
 

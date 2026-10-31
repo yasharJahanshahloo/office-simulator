@@ -6,8 +6,17 @@ export PATH="$HOME/.n/bin:$PATH"
 
 git pull --ff-only
 
-(cd web && npm ci --no-audit --no-fund && npm run build)
-(cd server && npm ci --no-audit --no-fund && npm run typecheck && npm test)
+# npm ci is slow on this disk: reinstall only when the lockfile changed.
+install_deps() {
+  local stamp=node_modules/.lock-sha
+  local sha; sha=$(sha256sum package-lock.json | cut -d' ' -f1)
+  if [ "$(cat "$stamp" 2>/dev/null)" != "$sha" ]; then
+    npm ci --no-audit --no-fund && echo "$sha" > "$stamp"
+  fi
+}
+
+(cd web && install_deps && npm run build)
+(cd server && install_deps && npm run typecheck && npm test)
 
 mkdir -p server/data
 [ -f server/data/allowlist.txt ] || cp server/allowlist.example.txt server/data/allowlist.txt

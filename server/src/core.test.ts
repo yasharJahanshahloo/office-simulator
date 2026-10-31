@@ -1,7 +1,4 @@
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
 import { test } from 'node:test';
 import { nameTagFor } from './bot';
 import { CredentialCodec } from './credential';
@@ -12,8 +9,7 @@ import { DESK_LABELS, parseLabel } from './seats';
 const KEY = 'a'.repeat(64);
 
 function tempStore(): Store {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'office-test-'));
-  return new Store(path.join(dir, 'db.sqlite'));
+  return new Store(':memory:');
 }
 
 test('24 desk labels, no meeting/lounge seats', () => {
@@ -77,6 +73,10 @@ test('presence: working → busy → stop → idle → away', () => {
 
   now = new Date(now.getTime() + 6 * 60_000);
   assert.equal(presence.snapshot().seats[0].state, 'idle');
+
+  // Persistence is throttled, but a different tool is always written through.
+  presence.record('1', 'codex', 'tool');
+  assert.equal(store.getUser('1')!.last_tool, 'codex');
 
   now = new Date('2026-11-01T21:00:00Z'); // 00:30 next day, Tehran
   s = presence.snapshot().seats[0];

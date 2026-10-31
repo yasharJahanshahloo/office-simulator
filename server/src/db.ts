@@ -22,10 +22,12 @@ export class Store {
   private readonly db: DatabaseSync;
 
   constructor(file: string) {
-    fs.mkdirSync(path.dirname(file), { recursive: true });
+    if (file !== ':memory:') fs.mkdirSync(path.dirname(file), { recursive: true });
     this.db = new DatabaseSync(file);
     this.db.exec(`
       PRAGMA journal_mode = WAL;
+      -- The dev server's disk syncs at ~10 KB/s; with WAL, NORMAL only syncs at checkpoints and stays crash-safe.
+      PRAGMA synchronous = NORMAL;
       CREATE TABLE IF NOT EXISTS users (
         user_id       TEXT PRIMARY KEY,
         chat_id       TEXT NOT NULL,
