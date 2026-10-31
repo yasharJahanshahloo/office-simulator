@@ -11,8 +11,8 @@ import * as THREE from 'three';
 /** Hip pivot: the figure sits a little forward on the chair so the hands reach the keyboard. */
 const HIP = new THREE.Vector3(0, 0.54, 0.13);
 /** Shoulder offset from the hip pivot, in the torso frame. */
-const SHOULDER_Y = 0.44;
-const SHOULDER_X = 0.2;
+export const SHOULDER_Y = 0.44;
+export const SHOULDER_X = 0.2;
 const UPPER_ARM = 0.3;
 const FOREARM = 0.28;
 
@@ -68,7 +68,7 @@ function down(g: THREE.BufferGeometry, length: number): THREE.BufferGeometry {
   return g.translate(0, -length / 2, 0);
 }
 
-const GEO = {
+export const GEO = {
   torso: new THREE.CylinderGeometry(0.19, 0.16, 0.48, 6).translate(0, 0.25, 0),
   head: new THREE.IcosahedronGeometry(0.12, 1),
   hair: new THREE.SphereGeometry(0.128, 8, 4, 0, Math.PI * 2, 0, Math.PI * 0.52),
@@ -81,7 +81,7 @@ const GEO = {
 };
 
 const materials = new Map<number, THREE.MeshStandardMaterial>();
-function flat(color: number): THREE.MeshStandardMaterial {
+export function flat(color: number): THREE.MeshStandardMaterial {
   let m = materials.get(color);
   if (!m) {
     m = new THREE.MeshStandardMaterial({ color, roughness: 0.85, flatShading: true });
@@ -89,10 +89,10 @@ function flat(color: number): THREE.MeshStandardMaterial {
   }
   return m;
 }
-const PANTS = 0x34384a;
-const SHOES = 0x1c1c20;
+export const PANTS = 0x34384a;
+export const SHOES = 0x1c1c20;
 
-function mesh(geo: THREE.BufferGeometry, mat: THREE.Material, x = 0, y = 0, z = 0): THREE.Mesh {
+export function mesh(geo: THREE.BufferGeometry, mat: THREE.Material, x = 0, y = 0, z = 0): THREE.Mesh {
   const m = new THREE.Mesh(geo, mat);
   m.position.set(x, y, z);
   m.castShadow = true;
@@ -101,7 +101,7 @@ function mesh(geo: THREE.BufferGeometry, mat: THREE.Material, x = 0, y = 0, z = 
 
 /* -------------------------------------------------------------- arm IK */
 
-interface ArmPose {
+export interface ArmPose {
   shoulder: number;
   elbow: number;
 }
@@ -118,7 +118,11 @@ function solveArm(wrist: THREE.Vector2, lean: number): ArmPose {
   const s = Math.sin(-lean);
   const tz = dy * s + dz * c;
   const ty = dy * c - dz * s - SHOULDER_Y;
+  return solveArmTo(tz, ty);
+}
 
+/** Same IK, for a wrist target (tz, ty) given relative to the shoulder in the torso frame. */
+export function solveArmTo(tz: number, ty: number): ArmPose {
   const d = THREE.MathUtils.clamp(Math.hypot(tz, ty), 0.05, UPPER_ARM + FOREARM - 1e-4);
   const alpha = Math.atan2(tz, -ty);
   const beta = Math.acos((UPPER_ARM ** 2 + d ** 2 - FOREARM ** 2) / (2 * UPPER_ARM * d));

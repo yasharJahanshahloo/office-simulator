@@ -2,12 +2,15 @@
  * Debug panel (`?debug=1`): pushes fake snapshots through the normal applySnapshot path.
  * In live mode the next server snapshot overrides whatever was set here.
  */
-import type { AvatarState, PresenceSnapshot } from '../presence/contract';
-import { demoSnapshot } from '../presence/demo';
+import type { AvatarState, PresenceSnapshot, SeatPresence } from '../presence/contract';
+import { demoOwner, demoSnapshot } from '../presence/demo';
+import { OWNER_SEAT_ID } from '../presence/owner';
 import type { SeatLabels } from './seatLabels';
 
 export interface DebugPanelOptions {
   seatIds: string[];
+  /** The owner's sofa seat exists in the layout. */
+  ownerSeat: boolean;
   labels: SeatLabels;
   labelsOn: boolean;
   apply: (snapshot: PresenceSnapshot) => void;
@@ -25,6 +28,14 @@ export function mountDebugPanel(host: HTMLElement, opts: DebugPanelOptions): voi
     <button data-action="idle">All idle</button>
     <button data-action="away">All away</button>
     <button data-action="empty">Nobody registered</button>
+    <div class="panel-title">Owner sofa</div>
+    <div class="debug-row">
+      <button data-sofa="working">Working</button>
+      <button data-sofa="busy">Busy</button>
+      <button data-sofa="idle">Idle</button>
+      <button data-sofa="away">Away</button>
+      <button data-sofa="none">None</button>
+    </div>
     <label><input type="checkbox" data-action="labels" /> Seat labels</label>
     <div class="stats" data-stats></div>
   `;
@@ -35,27 +46,43 @@ export function mountDebugPanel(host: HTMLElement, opts: DebugPanelOptions): voi
     const snap = opts.current();
     const counts: Record<AvatarState, number> = { working: 0, idle: 0, away: 0 };
     for (const s of snap?.seats ?? []) counts[s.state]++;
-    stats.textContent = `${opts.seatIds.length} desks · ${snap?.seats.length ?? 0} registered · working ${counts.working} · idle ${counts.idle} · away ${counts.away}`;
+    stats.textContent = `${opts.seatIds.length} desks${opts.ownerSeat ? ' + sofa' : ''} · ${snap?.seats.length ?? 0} registered · working ${counts.working} · idle ${counts.idle} · away ${counts.away}`;
   };
 
   const everyone = (state: AvatarState, busy: boolean): PresenceSnapshot => {
     const base = demoSnapshot(7, opts.seatIds);
     const byId = new Map(base.seats.map((s) => [s.seatId, s]));
-    return {
-      serverTime: new Date().toISOString(),
-      seats: opts.seatIds.map((seatId, i) => ({
-        ...(byId.get(seatId) ?? { seatId, label: seatId.replace(/^desk-/, ''), name: `@user${i + 1}`, userKey: `u${i}` }),
-        state,
-        busy,
-        tool: (['claude', 'cursor', 'codex', 'hermes'] as const)[i % 4]!,
-      })),
-    };
+    const seats: SeatPresence[] = opts.seatIds.map((seatId, i) => ({
+      ...(byId.get(seatId) ?? { seatId, label: seatId.replace(/^desk-/, ''), name: `@user${i + 1}`, userKey: `u${i}` }),
+      state,
+      busy,
+      tool: (['claude', 'cursor', 'codex', 'hermes'] as const)[i % 4]!,
+    }));
+    if (opts.ownerSeat) seats.push(demoOwner(state, busy));
+    return { serverTime: new Date().toISOString(), seats };
+  };
+
+  /** Keep the current snapshot, only change (or remove) the owner's sofa seat. */
+  const withOwner = (sofa: string): PresenceSnapshot => {
+    const seats = (opts.current()?.seats ?? []).filter((s) => s.seatId !== OWNER_SEAT_ID);
+    if (sofa !== 'none') {
+      const state: AvatarState = sofa === 'busy' ? 'working' : (sofa as AvatarState);
+      seats.push(demoOwner(state, sofa === 'busy'));
+    }
+    return { serverTime: new Date().toISOString(), seats };
   };
 
   panel.addEventListener('click', (e) => {
-    const action = (e.target as HTMLElement).closest('button')?.dataset.action;
+    const btn = (e.target as HTMLElement).closest('button');
+    const sofa = btn?.dataset.sofa;
+    if (sofa) {
+      opts.apply(withOwner(sofa));
+      refreshStats();
+      return;
+    }
+    const action = btn?.dataset.action;
     if (!action) return;
-    if (action === 'random') opts.apply(demoSnapshot(Math.floor(Math.random() * 1e6), opts.seatIds));
+    if (action === 'random') opts.apply(demoSnapshot(Math.floor(Math.random() * 1e6), opts.seatIds, opts.ownerSeat));
     else if (action === 'working') opts.apply(everyone('working', false));
     else if (action === 'busy') opts.apply(everyone('working', true));
     else if (action === 'idle') opts.apply(everyone('idle', false));

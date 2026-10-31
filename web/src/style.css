@@ -87,6 +87,16 @@ body {
   font-weight: 600;
 }
 
+.debug-panel .debug-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.debug-panel .debug-row button {
+  padding: 3px 6px;
+}
+
 .debug-panel .muted,
 .debug-panel .stats {
   color: #777;

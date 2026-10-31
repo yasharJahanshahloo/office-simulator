@@ -6,15 +6,21 @@
  *   idle    → seated figure leaning back, monitor off
  *   away    → empty chair, monitor off, name tag stays
  *   absent from the snapshot (unregistered) → empty desk, no name tag
+ *
+ * Plus the owner's sofa seat (OWNER_SEAT_ID): no desk or monitor; working = sitting with a
+ * phone (spinner above the phone when busy), idle = lying along the sofa, and the name
+ * plaque lies on the floor in front of the sofa.
  */
 import * as THREE from 'three';
 import type { OfficeScene } from '../office/buildOffice';
 import { yawFromFacing } from '../office/furniture';
 import { MATERIALS } from '../office/materials';
-import type { DeskItem, OfficeLayout, Seat } from '../office/types';
+import type { DeskItem, OfficeLayout, Seat, SofaItem } from '../office/types';
 import type { PresenceSnapshot, SeatPresence } from '../presence/contract';
-import { Figure, lookFor, shirtCss } from './figure';
+import { OWNER_SEAT_ID } from '../presence/owner';
+import { Figure, type FigureLook, type FigurePose, lookFor, shirtCss } from './figure';
 import { NameTag, PLAQUE_D, PLAQUE_W, spinnerMaterial, toolIconMaterial } from './labels';
+import { SofaFigure } from './sofaFigure';
 
 const TYPING_RATE = 2.2; // taps per second per hand
 const BUSY_TYPING_RATE = 6;
@@ -50,20 +56,45 @@ const glowMaterial = (() => {
   });
 })();
 
-interface Slot {
+/** What both the desk figure and the sofa figure can do. */
+interface Avatar {
+  readonly root: THREE.Group;
+  setLook(look: FigureLook): void;
+  setPose(pose: FigurePose): void;
+  animate(time: number, rate: number): void;
+}
+
+interface SlotBase {
   seat: Seat;
-  desk: DeskItem;
-  /** Positioned at the seat, rotated to face the desk. */
+  /** Frame the figure, tool icon (and for the sofa, the spinner) live in. */
   anchor: THREE.Group;
+  /** Plaque position in world space (y = surface it lies on). */
   tagPosition: THREE.Vector3;
-  spinnerPosition: THREE.Vector3;
-  glow: THREE.Mesh;
+  /** Tool icon position in the anchor frame; bobs around this. */
+  iconBase: THREE.Vector3;
   presence?: SeatPresence;
-  figure?: Figure;
+  figure?: Avatar;
   tag?: NameTag;
   icon?: THREE.Sprite;
   spinner?: THREE.Sprite;
 }
+
+interface DeskSlot extends SlotBase {
+  kind: 'desk';
+  desk: DeskItem;
+  /** World space. */
+  spinnerPosition: THREE.Vector3;
+  glow: THREE.Mesh;
+}
+
+interface SofaSlot extends SlotBase {
+  kind: 'sofa';
+  sofa: SofaItem;
+  /** Where along the sofa (sofa frame X) the owner sits. */
+  seatX: number;
+}
+
+type Slot = DeskSlot | SofaSlot;
 
 export class AvatarLayer {
   readonly root = new THREE.Group();
@@ -104,13 +135,52 @@ export class AvatarLayer {
       glow.visible = false;
       this.root.add(glow);
 
-      this.slots.set(seat.id, { seat, desk, anchor, tagPosition: plaquePosition(desk), spinnerPosition, glow });
+      this.slots.set(seat.id, {
+        kind: 'desk',
+        seat,
+        desk,
+        anchor,
+        tagPosition: plaquePosition(desk),
+        iconBase: new THREE.Vector3(0, ICON_Y, 0.05),
+        spinnerPosition,
+        glow,
+      });
     }
+
+    const owner = layout.seats.find((s) => s.id === OWNER_SEAT_ID);
+    const sofa = owner && nearestSofa(layout, owner);
+    if (owner && sofa) this.slots.set(owner.id, this.sofaSlot(owner, sofa));
   }
 
-  /** Seat ids the layer can show presence on (desk seats). */
+  /** Desk seat ids the layer can show presence on. */
   get seatIds(): string[] {
-    return [...this.slots.keys()];
+    return [...this.slots.values()].filter((s) => s.kind === 'desk').map((s) => s.seat.id);
+  }
+
+  /** Whether the owner's sofa seat exists in this layout. */
+  get hasOwnerSeat(): boolean {
+    return this.slots.has(OWNER_SEAT_ID);
+  }
+
+  private sofaSlot(seat: Seat, sofa: SofaItem): SofaSlot {
+    const facing = sofa.facing ?? { x: 0, z: 1 };
+    const anchor = new THREE.Group();
+    anchor.name = `seat:${seat.id}`;
+    anchor.position.set(sofa.at.x, 0, sofa.at.z);
+    anchor.rotation.y = yawFromFacing(facing);
+    anchor.updateMatrix();
+    this.root.add(anchor);
+    const seatLocal = new THREE.Vector3(seat.position.x, 0, seat.position.z).applyMatrix4(anchor.matrix.clone().invert());
+
+    // plaque flat on the floor in front of the sofa, level with the seat, clear of the
+    // sitting figure's feet (which reach ~0.23 m past the front edge)
+    const extentF = Math.abs(facing.x) * PLAQUE_W + Math.abs(facing.z) * PLAQUE_D;
+    const tagPosition = new THREE.Vector3(seatLocal.x, 0, sofa.depth / 2 + 0.3 + extentF / 2).applyMatrix4(
+      anchor.matrix,
+    );
+    tagPosition.y = 0.006;
+
+    return { kind: 'sofa', seat, sofa, seatX: seatLocal.x, anchor, tagPosition, iconBase: new THREE.Vector3() };
   }
 
   /** Make the scene match `snapshot`. Seats missing from it become empty, untagged desks. */
@@ -120,7 +190,7 @@ export class AvatarLayer {
       if (this.slots.has(p.seatId)) next.set(p.seatId, p);
       else if (!this.warned.has(p.seatId)) {
         this.warned.add(p.seatId);
-        console.warn(`presence: unknown desk seat "${p.seatId}" ignored`);
+        console.warn(`presence: unknown seat "${p.seatId}" ignored`);
       }
     }
     for (const slot of this.slots.values()) this.applySeat(slot, next.get(slot.seat.id));
@@ -134,7 +204,9 @@ export class AvatarLayer {
       if (!p || !slot.figure || p.state === 'away') continue;
       const rate = p.state === 'working' ? (p.busy ? BUSY_TYPING_RATE : TYPING_RATE) : 0;
       slot.figure.animate(time, rate);
-      if (slot.icon?.visible) slot.icon.position.y = ICON_Y + Math.sin(time * 2 + slot.seat.position.z) * 0.02;
+      if (slot.icon?.visible) {
+        slot.icon.position.y = slot.iconBase.y + Math.sin(time * 2 + slot.seat.position.z) * 0.02;
+      }
     }
   }
 
@@ -148,6 +220,7 @@ export class AvatarLayer {
         slot.tag = new NameTag(this.anisotropy);
         slot.tag.root.position.x = slot.tagPosition.x;
         slot.tag.root.position.z = slot.tagPosition.z;
+        if (slot.kind === 'sofa') slot.tag.root.position.y = slot.tagPosition.y;
         this.root.add(slot.tag.root);
       }
       slot.tag.set(p.name, shirtCss(p.userKey));
@@ -161,20 +234,23 @@ export class AvatarLayer {
     const seated = state === 'working' || state === 'idle';
     if (seated) {
       if (!slot.figure) {
-        slot.figure = new Figure();
+        slot.figure = slot.kind === 'desk' ? new Figure() : new SofaFigure(slot.sofa, slot.seatX);
         slot.anchor.add(slot.figure.root);
       }
       slot.figure.root.visible = true;
       slot.figure.setLook(lookFor(p!.userKey));
       slot.figure.setPose(state);
+      if (slot.figure instanceof SofaFigure) slot.figure.iconPoint(slot.iconBase);
     } else if (slot.figure) {
       slot.figure.root.visible = false;
     }
 
     // monitor
-    const screen = this.office.monitors.get(slot.desk.id);
-    if (screen) screen.material = state === 'working' ? MATERIALS.screenOn : MATERIALS.screenOff;
-    slot.glow.visible = state === 'working';
+    if (slot.kind === 'desk') {
+      const screen = this.office.monitors.get(slot.desk.id);
+      if (screen) screen.material = state === 'working' ? MATERIALS.screenOn : MATERIALS.screenOff;
+      slot.glow.visible = state === 'working';
+    }
 
     // tool icon above the head
     const tool = state === 'working' ? p!.tool : null;
@@ -182,23 +258,28 @@ export class AvatarLayer {
       if (!slot.icon) {
         slot.icon = new THREE.Sprite(toolIconMaterial(tool));
         slot.icon.scale.setScalar(ICON_SIZE);
-        slot.icon.position.set(0, ICON_Y, 0.05);
         slot.anchor.add(slot.icon);
       }
+      slot.icon.position.copy(slot.iconBase);
       slot.icon.material = toolIconMaterial(tool);
       slot.icon.visible = true;
     } else if (slot.icon) {
       slot.icon.visible = false;
     }
 
-    // busy spinner above the monitor
+    // busy spinner above the monitor (desk) or above the phone (sofa)
     const busy = state === 'working' && p!.busy;
     if (busy && !slot.spinner) {
       slot.spinner = new THREE.Sprite(spinnerMaterial());
       slot.spinner.scale.setScalar(SPINNER_SIZE);
-      slot.spinner.position.copy(slot.spinnerPosition);
-      this.root.add(slot.spinner);
+      if (slot.kind === 'desk') {
+        slot.spinner.position.copy(slot.spinnerPosition);
+        this.root.add(slot.spinner);
+      } else {
+        slot.anchor.add(slot.spinner);
+      }
     }
+    if (slot.spinner && slot.figure instanceof SofaFigure) slot.figure.spinnerPoint(slot.spinner.position);
     if (slot.spinner) slot.spinner.visible = busy;
   }
 }
@@ -223,4 +304,19 @@ function cameraSideAxis(desk: DeskItem): { x: number; z: number } {
   const f = desk.facing ?? { x: 0, z: 1 };
   const r = { x: -f.z, z: f.x };
   return r.z < -1e-6 || (Math.abs(r.z) < 1e-6 && r.x < 0) ? { x: -r.x, z: -r.z } : r;
+}
+
+/** The sofa whose footprint is closest to `seat`. */
+function nearestSofa(layout: OfficeLayout, seat: Seat): SofaItem | undefined {
+  let best: SofaItem | undefined;
+  let bestD = Infinity;
+  for (const f of layout.furniture) {
+    if (f.kind !== 'sofa') continue;
+    const d = Math.hypot(f.at.x - seat.position.x, f.at.z - seat.position.z);
+    if (d < bestD) {
+      bestD = d;
+      best = f;
+    }
+  }
+  return best;
 }

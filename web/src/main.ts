@@ -51,7 +51,7 @@ export function applySnapshot(snapshot: PresenceSnapshot): void {
 
 const demo = params.get('demo');
 if (demo !== null) {
-  applySnapshot(demoSnapshot(Number(demo) || 1, avatars.seatIds));
+  applySnapshot(demoSnapshot(Number(demo) || 1, avatars.seatIds, avatars.hasOwnerSeat));
 } else {
   connectLive({ onSnapshot: applySnapshot, onStatus: hud.setStatus });
 }
@@ -88,6 +88,7 @@ seatLabels.setVisible(labelsOn);
 if (params.get('debug') === '1') {
   mountDebugPanel(app, {
     seatIds: avatars.seatIds,
+    ownerSeat: avatars.hasOwnerSeat,
     labels: seatLabels,
     labelsOn,
     apply: applySnapshot,

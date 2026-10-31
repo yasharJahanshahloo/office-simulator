@@ -3,6 +3,7 @@
  * PresenceSnapshot that goes through the same rendering path as live data.
  */
 import type { AvatarState, PresenceSnapshot, SeatPresence, Tool } from './contract';
+import { OWNER_SEAT_ID, OWNER_SEAT_LABEL } from './owner';
 import { TOOL_ORDER } from './tools';
 
 /** Small deterministic PRNG so the same seed gives the same office. */
@@ -56,11 +57,31 @@ function shuffle<T>(rand: () => number, items: T[]): T[] {
   return items;
 }
 
+/** Fixed owner entry for demos; the state is the only thing that varies. */
+export function demoOwner(state: AvatarState, busy: boolean, tool: Tool | null = 'claude'): SeatPresence {
+  return {
+    seatId: OWNER_SEAT_ID,
+    label: OWNER_SEAT_LABEL,
+    name: 'yasharjl',
+    userKey: 'demo-owner',
+    state,
+    busy: state === 'working' && busy,
+    tool: state === 'away' ? null : tool,
+  };
+}
+
+const OWNER_CYCLE: Array<[AvatarState, boolean]> = [
+  ['idle', false],
+  ['working', true],
+  ['working', false],
+  ['away', false],
+];
+
 /**
- * About 80% of `seatIds` get a registered employee. The first few registered seats are
+ * About 80% of `seatIds` (desk seats) get a registered employee. The first few registered seats are
  * forced to cover every look (working/busy per tool, idle, away) so a screenshot shows them all.
  */
-export function demoSnapshot(seed: number, seatIds: readonly string[]): PresenceSnapshot {
+export function demoSnapshot(seed: number, seatIds: readonly string[], withOwner = false): PresenceSnapshot {
   const rand = mulberry32(seed);
   const names = shuffle(rand, [...NAMES]);
   const registered = shuffle(rand, [...seatIds]).filter(() => rand() < 0.82);
@@ -92,6 +113,8 @@ export function demoSnapshot(seed: number, seatIds: readonly string[]): Presence
       tool,
     };
   });
+  // the owner's sofa seat is added on top, without touching the desk random sequence
+  if (withOwner) seats.push(demoOwner(...OWNER_CYCLE[Math.abs(seed) % OWNER_CYCLE.length]!));
   seats.sort((a, b) => a.seatId.localeCompare(b.seatId));
   return { seats, serverTime: new Date().toISOString() };
 }
