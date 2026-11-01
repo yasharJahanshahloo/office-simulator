@@ -4,6 +4,7 @@
 import * as THREE from 'three';
 import { box, buildFurniture } from './furniture';
 import { MATERIALS, floorMaterial, paletteMaterial } from './materials';
+import { mergeStatic } from './mergeStatic';
 import type { GlassPartition, OfficeLayout, Rect, Wall } from './types';
 
 export interface OfficeScene {
@@ -34,6 +35,7 @@ export function buildOffice(layout: OfficeLayout): OfficeScene {
     if (item.kind === 'desk' && built.screen) monitors.set(item.id, built.screen);
   }
 
+  mergeStatic(root, new Set(monitors.values()));
   return { root, monitors };
 }
 

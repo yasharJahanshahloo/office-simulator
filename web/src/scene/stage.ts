@@ -52,6 +52,9 @@ export class Stage {
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
+    // Shadows only change when avatars change pose (a snapshot): see invalidateShadows().
+    this.renderer.shadowMap.autoUpdate = false;
+    this.renderer.shadowMap.needsUpdate = true;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.05;
     container.appendChild(this.renderer.domElement);
@@ -209,6 +212,11 @@ export class Stage {
     // positive offsetY moves the picture up
     cam.setViewOffset(w, h, 0, (shiftNdc * h) / 2, w, h);
     return hi;
+  }
+
+  /** Re-render the shadow map on the next frame. Call when something that casts a shadow moves. */
+  invalidateShadows(): void {
+    this.renderer.shadowMap.needsUpdate = true;
   }
 
   render(dt = 0): void {

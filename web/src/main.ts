@@ -46,6 +46,7 @@ let current: PresenceSnapshot | null = null;
 export function applySnapshot(snapshot: PresenceSnapshot): void {
   current = snapshot;
   avatars.applySnapshot(snapshot);
+  stage.invalidateShadows();
   hud.update(snapshot);
 }
 
