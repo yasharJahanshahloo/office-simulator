@@ -1,6 +1,6 @@
 # ADR-0006: Employee-designed avatars
 
-Status: accepted (2026-10-31), to be built
+Status: accepted (2026-10-31), built 2026-11-01
 
 ## Decision
 - A character creator at `/avatar` on the office site. No authentication: the page only produces a code.

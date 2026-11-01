@@ -10,7 +10,7 @@ Read `CONTEXT.md` for the domain language and `docs/adr/` for the decisions.
 |---|---|
 | `web/` | Vite + Three.js client: office scene, avatars, HUD |
 | `server/` | Node server: event API, SSE presence stream, Bale bot, static hosting of `web/dist` |
-| `shared/presence.ts` | Server ↔ client contract |
+| `shared/` | Server ↔ client contract (`presence.ts`) and avatar code format (`avatar.ts`) |
 | `reporter/` | What goes into an employee's setup zip: `ping.sh`, `ping.ps1`, `install.md` (written for AI agents) |
 | `deploy/` | systemd user unit and the deploy script for the dev server |
 
